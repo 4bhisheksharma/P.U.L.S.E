@@ -45,5 +45,7 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<key>NSUserNotificationsUsageDescription</key>
+	<string>PULSE needs notification access to alert you when your time capsules are ready to be opened.</string>
 </dict>
 </plist>

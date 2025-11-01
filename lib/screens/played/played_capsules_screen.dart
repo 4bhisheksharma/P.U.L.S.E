@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:pulse/models/models.dart';
 import 'package:pulse/services/capsule_database.dart';
+import 'package:pulse/services/notification_service.dart';
 import 'package:pulse/widgets/home/search_bar_widget.dart';
 import 'package:pulse/widgets/home/capsule_card.dart';
 import 'package:pulse/screens/player/audio_player_screen.dart';
@@ -200,6 +201,9 @@ class _PlayedCapsulesScreenState extends State<PlayedCapsulesScreen> {
   }
 
   void _handleDelete(VoiceCapsule capsule) async {
+    // Cancel scheduled notifications (in case it wasn't played)
+    await NotificationService().cancelCapsuleNotification(capsule.id);
+
     // Delete from database
     await CapsuleDatabase.deleteCapsule(capsule.id);
     await _loadCapsules();
@@ -215,6 +219,13 @@ class _PlayedCapsulesScreenState extends State<PlayedCapsulesScreen> {
             onPressed: () async {
               // Restore to database
               await CapsuleDatabase.addCapsule(capsule);
+              // Reschedule notifications if capsule not played yet
+              if (!capsule.hasBeenOpened) {
+                await NotificationService().scheduleCapsuleUnlockNotification(
+                  capsule,
+                );
+                await NotificationService().scheduleUnlockReminder(capsule);
+              }
               await _loadCapsules();
             },
           ),

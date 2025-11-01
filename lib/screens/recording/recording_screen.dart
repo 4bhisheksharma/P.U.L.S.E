@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:pulse/models/models.dart';
 import 'package:pulse/services/capsule_database.dart';
+import 'package:pulse/services/notification_service.dart';
 import 'package:record/record.dart';
 import 'package:uuid/uuid.dart';
 
@@ -155,6 +156,10 @@ class _RecordingScreenState extends State<RecordingScreen> {
       );
 
       await CapsuleDatabase.addCapsule(capsule);
+
+      // Schedule notifications for unlock
+      await NotificationService().scheduleCapsuleUnlockNotification(capsule);
+      await NotificationService().scheduleUnlockReminder(capsule);
 
       if (mounted) {
         Navigator.pop(context, true); // Return true to indicate success

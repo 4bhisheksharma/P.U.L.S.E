@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:pulse/models/models.dart';
 import 'package:pulse/services/capsule_database.dart';
+import 'package:pulse/services/notification_service.dart';
 import 'package:pulse/theme/my_app_theme.dart';
 import 'package:pulse/widgets/home/search_bar_widget.dart';
 import 'package:pulse/widgets/home/capsule_card.dart';
@@ -324,6 +325,9 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _handleDelete(VoiceCapsule capsule) async {
+    // Cancel scheduled notifications
+    await NotificationService().cancelCapsuleNotification(capsule.id);
+
     // Delete from database
     await CapsuleDatabase.deleteCapsule(capsule.id);
     await _loadCapsules(); // Reload from database
@@ -343,6 +347,11 @@ class _HomeScreenState extends State<HomeScreen> {
           onPressed: () async {
             // Restore to database
             await CapsuleDatabase.addCapsule(capsule);
+            // Reschedule notifications
+            await NotificationService().scheduleCapsuleUnlockNotification(
+              capsule,
+            );
+            await NotificationService().scheduleUnlockReminder(capsule);
             await _loadCapsules();
           },
         ),
