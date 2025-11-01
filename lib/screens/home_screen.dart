@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:pulse/models/models.dart';
+import 'package:pulse/services/capsule_database.dart';
 import 'package:pulse/theme/my_app_theme.dart';
-import 'package:pulse/widgets/home/app_header.dart';
 import 'package:pulse/widgets/home/search_bar_widget.dart';
-import 'package:pulse/widgets/home/recording_card.dart';
+import 'package:pulse/widgets/home/capsule_card.dart';
+import 'package:pulse/screens/recording/recording_screen.dart';
+import 'package:pulse/screens/player/audio_player_screen.dart';
+import 'package:pulse/utils/test_helpers.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -13,13 +17,29 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final TextEditingController _searchController = TextEditingController();
+  List<VoiceCapsule> _capsules = [];
+  List<VoiceCapsule> _filteredCapsules = [];
+  bool _isLoading = true;
 
-  final List<Map<String, String>> recordings = [
-    {'title': 'Recordings 1', 'date': '2 days ago | 2 days to go'},
-    {'title': 'recording 2', 'date': '5 days ago | 3 days to go'},
-    {'title': 'Meeting Notes', 'date': '1 week ago | 1 week to go'},
-    {'title': 'Voice Memo', 'date': '2 weeks ago | 1 week to go'},
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _loadCapsules();
+  }
+
+  Future<void> _loadCapsules() async {
+    setState(() => _isLoading = true);
+
+    // Load from database and filter out played capsules
+    final allCapsules = CapsuleDatabase.getAllCapsules();
+    _capsules = allCapsules.where((c) => !c.hasBeenOpened).toList();
+
+    // Sort by unlock date (soonest first)
+    _capsules.sort((a, b) => a.unlockDate.compareTo(b.unlockDate));
+    _filteredCapsules = _capsules;
+
+    setState(() => _isLoading = false);
+  }
 
   @override
   void dispose() {
@@ -30,26 +50,68 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        title: Row(
+          children: [
+            Image.asset(
+              'assets/images/pulse.png',
+              height: 55,
+              fit: BoxFit.contain,
+            ),
+          ],
+        ),
+        actions: [
+          // Notification icon
+          IconButton(
+            icon: const Icon(Icons.notifications_outlined),
+            onPressed: () {
+              // TODO: Navigate to notifications
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Notifications coming soon!')),
+              );
+            },
+          ),
+          // Menu
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.more_vert),
+            onSelected: _handleDebugAction,
+            itemBuilder: (context) => [
+              const PopupMenuItem(
+                value: 'played',
+                child: Text('▶️ Played Capsules'),
+              ),
+              const PopupMenuItem(
+                value: 'stats',
+                child: Text('📊 Show Statistics'),
+              ),
+              const PopupMenuItem(
+                value: 'refresh',
+                child: Text('🔄 Refresh List'),
+              ),
+            ],
+          ),
+        ],
+      ),
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(20.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const AppHeader(),
-              const SizedBox(height: 24),
-
-              //FIXME: yo baki chha UI fix garna
               SearchBarWidget(
                 controller: _searchController,
-                onChanged: (value) {
-                  // Handle search
-                },
+                onChanged: _handleSearch,
               ),
               const SizedBox(height: 24),
 
               // Recordings list
-              Expanded(child: _buildRecordingsList()),
+              Expanded(
+                child: _isLoading
+                    ? const Center(child: CircularProgressIndicator())
+                    : _buildRecordingsList(),
+              ),
             ],
           ),
         ),
@@ -58,61 +120,211 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  void _handleSearch(String query) {
+    setState(() {
+      if (query.isEmpty) {
+        _filteredCapsules = _capsules;
+      } else {
+        // Search only unplayed capsules
+        _filteredCapsules = _capsules.where((capsule) {
+          final titleMatch = capsule.title.toLowerCase().contains(
+            query.toLowerCase(),
+          );
+          final descMatch =
+              capsule.description?.toLowerCase().contains(
+                query.toLowerCase(),
+              ) ??
+              false;
+          return titleMatch || descMatch;
+        }).toList();
+      }
+    });
+  }
+
+  Future<void> _handleDebugAction(String action) async {
+    switch (action) {
+      case 'played':
+        // Navigate to played capsules screen
+        if (mounted) {
+          Navigator.pushNamed(context, '/played');
+        }
+        break;
+
+      case 'stats':
+        final stats = TestHelpers.getLockStatistics();
+        if (mounted) {
+          showDialog(
+            context: context,
+            builder: (context) => AlertDialog(
+              title: const Text('📊 Capsule Statistics'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Total Capsules: ${stats['total']}'),
+                  const SizedBox(height: 8),
+                  Text('🔒 Locked: ${stats['locked']}'),
+                  Text('⏰ Unlockable: ${stats['unlockable']}'),
+                  Text('✅ Opened: ${stats['opened']}'),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('OK'),
+                ),
+              ],
+            ),
+          );
+        }
+        break;
+
+      case 'refresh':
+        await _loadCapsules();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('🔄 Refreshed capsule list'),
+              duration: Duration(seconds: 1),
+            ),
+          );
+        }
+        break;
+    }
+  }
+
   Widget _buildRecordingsList() {
+    if (_filteredCapsules.isEmpty) {
+      // Show different message based on whether there are any capsules at all
+      final hasNoCapsules = _capsules.isEmpty && _searchController.text.isEmpty;
+
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              hasNoCapsules ? Icons.mic : Icons.search_off,
+              size: 64,
+              color: Colors.grey[600],
+            ),
+            const SizedBox(height: 16),
+            Text(
+              hasNoCapsules ? 'No capsules yet' : 'No capsules found',
+              style: Theme.of(context).textTheme.headlineSmall,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              hasNoCapsules
+                  ? 'Tap + to record your first time capsule'
+                  : 'Try a different search term',
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.copyWith(color: Colors.grey[600]),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      );
+    }
+
     return ListView.builder(
-      itemCount: recordings.length,
+      itemCount: _filteredCapsules.length,
       itemBuilder: (context, index) {
+        final capsule = _filteredCapsules[index];
         return Padding(
           padding: const EdgeInsets.only(bottom: 12),
-          child: RecordingCard(
-            title: recordings[index]['title']!,
-            date: recordings[index]['date']!,
-            onPlay: () {
-              _handlePlay(recordings[index]['title']!);
-            },
-            onShare: () {
-              _handleShare(recordings[index]['title']!);
-            },
-            onRename: () {
-              _handleRename(recordings[index]['title']!);
-            },
-            onDelete: () {
-              _handleDelete(recordings[index]['title']!);
-            },
-          ),
+          child: _buildCapsuleCard(capsule),
         );
       },
     );
   }
 
-  void _handlePlay(String title) {
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text('Playing: $title')));
+  Widget _buildCapsuleCard(VoiceCapsule capsule) {
+    return CapsuleCard(
+      capsule: capsule,
+      onTap: () => _handlePlay(capsule),
+      onShare: () => _handleShare(capsule),
+      onRename: () => _handleRename(capsule),
+      onDelete: () => _handleDelete(capsule),
+    );
   }
 
-  void _handleShare(String title) {
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text('Sharing: $title')));
+  void _handlePlay(VoiceCapsule capsule) async {
+    if (capsule.isLocked) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('🔒 This capsule is still locked!'),
+          backgroundColor: Colors.orange.shade700,
+        ),
+      );
+      return;
+    }
+
+    // Mark as opened if it's the first time
+    if (!capsule.hasBeenOpened) {
+      final updatedCapsule = capsule.copyWith(hasBeenOpened: true);
+      await CapsuleDatabase.updateCapsule(updatedCapsule);
+    }
+
+    // Navigate to audio player screen
+    if (mounted) {
+      await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => AudioPlayerScreen(capsule: capsule),
+        ),
+      );
+
+      // Reload capsules when returning
+      _loadCapsules();
+    }
   }
 
-  void _handleRename(String title) {
+  void _handleShare(VoiceCapsule capsule) {
+    if (capsule.isLocked) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('🔒 Cannot share a locked capsule'),
+          backgroundColor: Colors.orange.shade700,
+        ),
+      );
+      return;
+    }
+
     ScaffoldMessenger.of(
       context,
-    ).showSnackBar(SnackBar(content: Text('Renaming: $title')));
+    ).showSnackBar(SnackBar(content: Text('📤 Sharing: ${capsule.title}')));
   }
 
-  void _handleDelete(String title) {
+  void _handleRename(VoiceCapsule capsule) {
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text('✏️ Renaming: ${capsule.title}')));
+  }
+
+  void _handleDelete(VoiceCapsule capsule) async {
+    // Delete from database
+    await CapsuleDatabase.deleteCapsule(capsule.id);
+    await _loadCapsules(); // Reload from database
+
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
-          'Deleted: $title',
+          '🗑️ Deleted: ${capsule.title}',
           style: TextStyle(
             color: MyAppTheme.darkTheme.textTheme.bodyLarge?.color,
           ),
         ),
         backgroundColor: Colors.red.shade400,
+        action: SnackBarAction(
+          label: 'UNDO',
+          textColor: Colors.white,
+          onPressed: () async {
+            // Restore to database
+            await CapsuleDatabase.addCapsule(capsule);
+            await _loadCapsules();
+          },
+        ),
       ),
     );
   }
@@ -130,14 +342,16 @@ class _HomeScreenState extends State<HomeScreen> {
         ],
       ),
       child: FloatingActionButton(
-        onPressed: () {
-          // Handle recording action
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Start recording...'),
-              duration: Duration(seconds: 2),
-            ),
+        onPressed: () async {
+          final result = await Navigator.push<bool>(
+            context,
+            MaterialPageRoute(builder: (context) => const RecordingScreen()),
           );
+
+          // Reload capsules if a new one was saved
+          if (result == true && mounted) {
+            _loadCapsules();
+          }
         },
         backgroundColor: const Color(0xFF6C63FF),
         child: const Icon(Icons.add, size: 32, color: Colors.white),

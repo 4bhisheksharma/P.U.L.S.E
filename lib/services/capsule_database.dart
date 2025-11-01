@@ -1,0 +1,143 @@
+import 'package:hive_flutter/hive_flutter.dart';
+import 'package:pulse/models/models.dart';
+
+/// Service for managing voice capsules in Hive database
+class CapsuleDatabase {
+  static const String _boxName = 'capsules';
+  static Box<VoiceCapsule>? _box;
+
+  /// Initialize Hive and open the capsules box
+  static Future<void> init() async {
+    await Hive.initFlutter();
+    
+    // Register adapter if not already registered
+    if (!Hive.isAdapterRegistered(0)) {
+      Hive.registerAdapter(VoiceCapsuleAdapter());
+    }
+    
+    // Open the box
+    _box = await Hive.openBox<VoiceCapsule>(_boxName);
+  }
+
+  /// Get the capsules box
+  static Box<VoiceCapsule> get box {
+    if (_box == null || !_box!.isOpen) {
+      throw Exception('Database not initialized. Call init() first.');
+    }
+    return _box!;
+  }
+
+  /// Get all capsules
+  static List<VoiceCapsule> getAllCapsules() {
+    return box.values.toList();
+  }
+
+  /// Get a capsule by ID
+  static VoiceCapsule? getCapsuleById(String id) {
+    return box.values.firstWhere(
+      (capsule) => capsule.id == id,
+      orElse: () => throw Exception('Capsule not found'),
+    );
+  }
+
+  /// Add a new capsule
+  static Future<void> addCapsule(VoiceCapsule capsule) async {
+    await box.put(capsule.id, capsule);
+  }
+
+  /// Update an existing capsule
+  static Future<void> updateCapsule(VoiceCapsule capsule) async {
+    await box.put(capsule.id, capsule);
+  }
+
+  /// Delete a capsule
+  static Future<void> deleteCapsule(String id) async {
+    await box.delete(id);
+  }
+
+  /// Delete all capsules
+  static Future<void> deleteAllCapsules() async {
+    await box.clear();
+  }
+
+  /// Get locked capsules
+  static List<VoiceCapsule> getLockedCapsules() {
+    return box.values.where((capsule) => capsule.isLocked).toList();
+  }
+
+  /// Get unlockable capsules (ready to unlock but not opened yet)
+  static List<VoiceCapsule> getUnlockableCapsules() {
+    return box.values.where((capsule) => 
+      capsule.state == CapsuleState.unlockable
+    ).toList();
+  }
+
+  /// Get opened capsules
+  static List<VoiceCapsule> getOpenedCapsules() {
+    return box.values.where((capsule) => capsule.hasBeenOpened).toList();
+  }
+
+  /// Get capsules sorted by unlock date
+  static List<VoiceCapsule> getCapsulesSortedByUnlockDate({
+    bool ascending = true,
+  }) {
+    final capsules = getAllCapsules();
+    capsules.sort((a, b) {
+      return ascending
+          ? a.unlockDate.compareTo(b.unlockDate)
+          : b.unlockDate.compareTo(a.unlockDate);
+    });
+    return capsules;
+  }
+
+  /// Get capsules sorted by recorded date
+  static List<VoiceCapsule> getCapsulesSortedByRecordedDate({
+    bool ascending = false,
+  }) {
+    final capsules = getAllCapsules();
+    capsules.sort((a, b) {
+      return ascending
+          ? a.recordedDate.compareTo(b.recordedDate)
+          : b.recordedDate.compareTo(a.recordedDate);
+    });
+    return capsules;
+  }
+
+  /// Search capsules by title, emotion, or description
+  static List<VoiceCapsule> searchCapsules(String query) {
+    if (query.isEmpty) return getAllCapsules();
+    
+    final lowercaseQuery = query.toLowerCase();
+    return box.values.where((capsule) {
+      return capsule.title.toLowerCase().contains(lowercaseQuery) ||
+          (capsule.emotionTag?.toLowerCase().contains(lowercaseQuery) ?? false) ||
+          (capsule.description?.toLowerCase().contains(lowercaseQuery) ?? false);
+    }).toList();
+  }
+
+  /// Get count of capsules by state
+  static Map<CapsuleState, int> getCapsuleCountByState() {
+    final counts = <CapsuleState, int>{
+      CapsuleState.locked: 0,
+      CapsuleState.unlockable: 0,
+      CapsuleState.opened: 0,
+    };
+
+    for (final capsule in box.values) {
+      counts[capsule.state] = (counts[capsule.state] ?? 0) + 1;
+    }
+
+    return counts;
+  }
+
+  /// Check if database is empty
+  static bool get isEmpty => box.isEmpty;
+
+  /// Get total number of capsules
+  static int get count => box.length;
+
+  /// Close the database
+  static Future<void> close() async {
+    await box.close();
+  }
+}
