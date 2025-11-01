@@ -10,8 +10,9 @@ class MyAppView extends StatelessWidget {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: "P.U.L.S.E",
-      theme: MyAppTheme.lightTheme,
-      home: HomeScreen(),
+      theme: MyAppTheme.darkTheme,
+      themeMode: ThemeMode.dark,
+      home: const HomeScreen(),
     );
   }
 }
