@@ -106,11 +106,14 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               const SizedBox(height: 24),
 
-              // Recordings list
+              // Recordings list with pull-to-refresh
               Expanded(
                 child: _isLoading
                     ? const Center(child: CircularProgressIndicator())
-                    : _buildRecordingsList(),
+                    : RefreshIndicator(
+                        onRefresh: _loadCapsules,
+                        child: _buildRecordingsList(),
+                      ),
               ),
             ],
           ),
@@ -198,36 +201,54 @@ class _HomeScreenState extends State<HomeScreen> {
       // Show different message based on whether there are any capsules at all
       final hasNoCapsules = _capsules.isEmpty && _searchController.text.isEmpty;
 
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              hasNoCapsules ? Icons.mic : Icons.search_off,
-              size: 64,
-              color: Colors.grey[600],
+      // Wrap in ListView to enable pull-to-refresh even when empty
+      return ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        children: [
+          SizedBox(
+            height: MediaQuery.of(context).size.height * 0.5,
+            child: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    hasNoCapsules ? Icons.mic : Icons.search_off,
+                    size: 64,
+                    color: Colors.grey[600],
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    hasNoCapsules ? 'No capsules yet' : 'No capsules found',
+                    style: Theme.of(context).textTheme.headlineSmall,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    hasNoCapsules
+                        ? 'Tap + to record your first time capsule'
+                        : 'Try a different search term',
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodyMedium?.copyWith(color: Colors.grey[600]),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 16),
+                  if (hasNoCapsules)
+                    Text(
+                      'Pull down to refresh',
+                      style: Theme.of(
+                        context,
+                      ).textTheme.bodySmall?.copyWith(color: Colors.grey[700]),
+                    ),
+                ],
+              ),
             ),
-            const SizedBox(height: 16),
-            Text(
-              hasNoCapsules ? 'No capsules yet' : 'No capsules found',
-              style: Theme.of(context).textTheme.headlineSmall,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              hasNoCapsules
-                  ? 'Tap + to record your first time capsule'
-                  : 'Try a different search term',
-              style: Theme.of(
-                context,
-              ).textTheme.bodyMedium?.copyWith(color: Colors.grey[600]),
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
+          ),
+        ],
       );
     }
 
     return ListView.builder(
+      physics: const AlwaysScrollableScrollPhysics(),
       itemCount: _filteredCapsules.length,
       itemBuilder: (context, index) {
         final capsule = _filteredCapsules[index];
