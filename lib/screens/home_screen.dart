@@ -52,7 +52,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: Colors.transparent,
+        backgroundColor: MyAppTheme.backgroundColor,
         elevation: 0,
         title: Row(
           children: [
@@ -398,7 +398,7 @@ class _HomeScreenState extends State<HomeScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('🔒 This capsule is still locked!'),
-          backgroundColor: Colors.orange.shade700,
+          backgroundColor: MyAppTheme.warningColor,
         ),
       );
       return;
@@ -429,7 +429,7 @@ class _HomeScreenState extends State<HomeScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('🔒 Cannot share a locked capsule'),
-          backgroundColor: Colors.orange.shade700,
+          backgroundColor: MyAppTheme.warningColor,
         ),
       );
       return;
@@ -458,11 +458,9 @@ class _HomeScreenState extends State<HomeScreen> {
       SnackBar(
         content: Text(
           '🗑️ Deleted: ${capsule.title}',
-          style: TextStyle(
-            color: MyAppTheme.darkTheme.textTheme.bodyLarge?.color,
-          ),
+          style: TextStyle(color: MyAppTheme.textColor),
         ),
-        backgroundColor: Colors.red.shade400,
+        backgroundColor: MyAppTheme.errorColor,
         action: SnackBarAction(
           label: 'UNDO',
           textColor: Colors.white,
@@ -487,7 +485,7 @@ class _HomeScreenState extends State<HomeScreen> {
         borderRadius: BorderRadius.circular(18),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF6C63FF).withAlpha(150),
+            color: MyAppTheme.primaryColor.withAlpha(150),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),
@@ -505,7 +503,7 @@ class _HomeScreenState extends State<HomeScreen> {
             _loadCapsules();
           }
         },
-        backgroundColor: const Color(0xFF6C63FF),
+        backgroundColor: MyAppTheme.primaryColor,
         child: const Icon(Icons.add, size: 32, color: Colors.white),
       ),
     );

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:pulse/theme/my_app_theme.dart';
 
 class SearchBarWidget extends StatefulWidget {
   final TextEditingController? controller;
@@ -59,7 +60,7 @@ class _SearchBarWidgetState extends State<SearchBarWidget> {
         border: Border.all(
           color: _isFocused
               ? theme.colorScheme.primary.withAlpha(150)
-              : const Color(0xFF2D2D3A),
+              : MyAppTheme.borderColor,
           width: _isFocused ? 2.0 : 1.5,
         ),
         boxShadow: [
@@ -79,7 +80,9 @@ class _SearchBarWidgetState extends State<SearchBarWidget> {
             duration: const Duration(milliseconds: 200),
             child: Icon(
               Icons.search_rounded,
-              color: _isFocused ? theme.colorScheme.primary : Colors.grey[400],
+              color: _isFocused
+                  ? theme.colorScheme.primary
+                  : MyAppTheme.textSecondaryColor,
               size: 24,
             ),
           ),
@@ -96,7 +99,7 @@ class _SearchBarWidgetState extends State<SearchBarWidget> {
               decoration: InputDecoration(
                 hintText: widget.hintText ?? '   Search capsules...',
                 hintStyle: TextStyle(
-                  color: Colors.grey[500],
+                  color: MyAppTheme.textSecondaryColor,
                   fontSize: 16,
                   letterSpacing: 0.2,
                 ),
@@ -112,7 +115,7 @@ class _SearchBarWidgetState extends State<SearchBarWidget> {
               child: IconButton(
                 icon: Icon(
                   Icons.clear_rounded,
-                  color: Colors.grey[400],
+                  color: MyAppTheme.textSecondaryColor,
                   size: 20,
                 ),
                 onPressed: _clearSearch,

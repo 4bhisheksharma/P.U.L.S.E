@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import 'package:pulse/models/models.dart';
+import 'package:pulse/theme/my_app_theme.dart';
 
 class AudioPlayerScreen extends StatefulWidget {
   final VoiceCapsule capsule;
@@ -119,7 +120,7 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen> {
 
   void _showError(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), backgroundColor: Colors.red.shade700),
+      SnackBar(content: Text(message), backgroundColor: MyAppTheme.errorColor),
     );
   }
 
@@ -151,10 +152,7 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen> {
                 decoration: BoxDecoration(
                   color: theme.cardColor,
                   borderRadius: BorderRadius.circular(24),
-                  border: Border.all(
-                    color: const Color(0xFF2D2D3A),
-                    width: 1.5,
-                  ),
+                  border: Border.all(color: MyAppTheme.borderColor, width: 1.5),
                 ),
                 child: Column(
                   children: [
@@ -232,7 +230,7 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen> {
                   padding: const EdgeInsets.only(bottom: 16),
                   child: Text(
                     _errorMessage!,
-                    style: TextStyle(color: Colors.red.shade400),
+                    style: TextStyle(color: MyAppTheme.errorColor),
                     textAlign: TextAlign.center,
                   ),
                 ),

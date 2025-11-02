@@ -4,6 +4,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:pulse/models/models.dart';
 import 'package:pulse/services/capsule_database.dart';
 import 'package:pulse/services/notification_service.dart';
+import 'package:pulse/theme/my_app_theme.dart';
 import 'package:record/record.dart';
 import 'package:uuid/uuid.dart';
 
@@ -171,7 +172,7 @@ class _RecordingScreenState extends State<RecordingScreen> {
 
   void _showError(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), backgroundColor: Colors.red.shade700),
+      SnackBar(content: Text(message), backgroundColor: MyAppTheme.errorColor),
     );
   }
 
@@ -188,7 +189,7 @@ class _RecordingScreenState extends State<RecordingScreen> {
           data: Theme.of(context).copyWith(
             colorScheme: ColorScheme.dark(
               primary: Theme.of(context).colorScheme.primary,
-              surface: const Color(0xFF1A1A24),
+              surface: MyAppTheme.surfaceColor,
             ),
           ),
           child: child!,
@@ -205,7 +206,7 @@ class _RecordingScreenState extends State<RecordingScreen> {
             data: Theme.of(context).copyWith(
               colorScheme: ColorScheme.dark(
                 primary: Theme.of(context).colorScheme.primary,
-                surface: const Color(0xFF1A1A24),
+                surface: MyAppTheme.surfaceColor,
               ),
             ),
             child: child!,

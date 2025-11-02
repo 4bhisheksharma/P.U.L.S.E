@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:pulse/models/models.dart';
 import 'package:pulse/services/capsule_database.dart';
 import 'package:pulse/services/notification_service.dart';
+import 'package:pulse/theme/my_app_theme.dart';
 import 'package:pulse/widgets/home/search_bar_widget.dart';
 import 'package:pulse/widgets/home/capsule_card.dart';
 import 'package:pulse/screens/player/audio_player_screen.dart';
@@ -50,7 +51,7 @@ class _PlayedCapsulesScreenState extends State<PlayedCapsulesScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Played Capsules'),
-        backgroundColor: Colors.transparent,
+        backgroundColor: MyAppTheme.backgroundColor,
         elevation: 0,
       ),
       body: SafeArea(
@@ -330,7 +331,7 @@ class _PlayedCapsulesScreenState extends State<PlayedCapsulesScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('🗑️ Deleted: ${capsule.title}'),
-          backgroundColor: Colors.red.shade400,
+          backgroundColor: MyAppTheme.errorColor,
           action: SnackBarAction(
             label: 'UNDO',
             textColor: Colors.white,
