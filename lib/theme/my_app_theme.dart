@@ -71,7 +71,7 @@ class MyAppTheme {
         fillColor: _darkCard,
         contentPadding: const EdgeInsets.symmetric(
           vertical: 16,
-          horizontal: 20,
+          // horizontal: 20,
         ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(20),

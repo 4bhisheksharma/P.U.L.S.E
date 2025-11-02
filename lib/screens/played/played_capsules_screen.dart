@@ -63,7 +63,15 @@ class _PlayedCapsulesScreenState extends State<PlayedCapsulesScreen> {
               SearchBarWidget(
                 controller: _searchController,
                 onChanged: _handleSearch,
+                hintText: 'Search played capsules...',
               ),
+
+              // Search results counter
+              if (_searchController.text.isNotEmpty) ...[
+                const SizedBox(height: 16),
+                _buildSearchResultsCounter(),
+              ],
+
               const SizedBox(height: 24),
 
               // Capsules list with pull-to-refresh
@@ -102,9 +110,72 @@ class _PlayedCapsulesScreenState extends State<PlayedCapsulesScreen> {
     });
   }
 
+  Widget _buildSearchResultsCounter() {
+    final theme = Theme.of(context);
+    final resultCount = _filteredCapsules.length;
+    final totalCount = _capsules.length;
+
+    return AnimatedOpacity(
+      opacity: 1.0,
+      duration: const Duration(milliseconds: 300),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.primary.withAlpha(25),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: theme.colorScheme.primary.withAlpha(100),
+            width: 1,
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              Icons.filter_list_rounded,
+              size: 18,
+              color: theme.colorScheme.primary,
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                resultCount == 0
+                    ? 'No capsules match "${_searchController.text}"'
+                    : resultCount == 1
+                    ? '1 played capsule found'
+                    : '$resultCount played capsules found',
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.colorScheme.primary,
+                  fontWeight: FontWeight.w500,
+                  fontSize: 13,
+                ),
+              ),
+            ),
+            if (resultCount < totalCount)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.primary.withAlpha(50),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  'of $totalCount',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.primary,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildCapsulesList() {
     if (_filteredCapsules.isEmpty) {
       final hasNoCapsules = _capsules.isEmpty && _searchController.text.isEmpty;
+      final isSearching = _searchController.text.isNotEmpty;
 
       // Wrap in ListView to enable pull-to-refresh even when empty
       return ListView(
@@ -116,36 +187,83 @@ class _PlayedCapsulesScreenState extends State<PlayedCapsulesScreen> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(
-                    hasNoCapsules ? Icons.history : Icons.search_off,
-                    size: 64,
-                    color: Colors.grey[600],
+                  // Animated icon container
+                  Container(
+                    padding: const EdgeInsets.all(24),
+                    decoration: BoxDecoration(
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.primary.withAlpha(25),
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.primary.withAlpha(50),
+                        width: 2,
+                      ),
+                    ),
+                    child: Icon(
+                      hasNoCapsules
+                          ? Icons.history_rounded
+                          : isSearching
+                          ? Icons.search_off_rounded
+                          : Icons.inbox_rounded,
+                      size: 56,
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.primary.withAlpha(150),
+                    ),
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 24),
                   Text(
                     hasNoCapsules
                         ? 'No played capsules yet'
                         : 'No capsules found',
-                    style: Theme.of(context).textTheme.headlineSmall,
+                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
-                  const SizedBox(height: 8),
-                  Text(
-                    hasNoCapsules
-                        ? 'Capsules you\'ve listened to will appear here'
-                        : 'Try a different search term',
-                    style: Theme.of(
-                      context,
-                    ).textTheme.bodyMedium?.copyWith(color: Colors.grey[600]),
-                    textAlign: TextAlign.center,
+                  const SizedBox(height: 12),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 40),
+                    child: Text(
+                      hasNoCapsules
+                          ? 'Capsules you\'ve listened to will appear here'
+                          : isSearching
+                          ? 'Try adjusting your search or clear filters'
+                          : 'No results match your search',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: Colors.grey[500],
+                        height: 1.5,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
                   ),
-                  const SizedBox(height: 16),
-                  if (hasNoCapsules)
+                  const SizedBox(height: 24),
+                  if (isSearching)
+                    TextButton.icon(
+                      onPressed: () {
+                        _searchController.clear();
+                        _handleSearch('');
+                      },
+                      icon: const Icon(Icons.clear_all_rounded, size: 20),
+                      label: const Text('Clear Search'),
+                      style: TextButton.styleFrom(
+                        foregroundColor: Theme.of(context).colorScheme.primary,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 24,
+                          vertical: 12,
+                        ),
+                      ),
+                    ),
+                  if (hasNoCapsules) ...[
                     Text(
                       'Pull down to refresh',
                       style: Theme.of(
                         context,
                       ).textTheme.bodySmall?.copyWith(color: Colors.grey[700]),
                     ),
+                  ],
                 ],
               ),
             ),
