@@ -56,22 +56,7 @@ class _SearchBarWidgetState extends State<SearchBarWidget> {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
         color: theme.cardColor,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: _isFocused
-              ? theme.colorScheme.primary.withAlpha(150)
-              : MyAppTheme.borderColor,
-          width: _isFocused ? 2.0 : 1.5,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: _isFocused
-                ? theme.colorScheme.primary.withAlpha(50)
-                : Colors.black.withAlpha(100),
-            blurRadius: _isFocused ? 12 : 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        borderRadius: BorderRadius.circular(24),
       ),
       child: Row(
         children: [
@@ -97,7 +82,7 @@ class _SearchBarWidgetState extends State<SearchBarWidget> {
                 letterSpacing: 0.2,
               ),
               decoration: InputDecoration(
-                hintText: widget.hintText ?? '   Search capsules...',
+                hintText: widget.hintText ?? 'Search capsules...',
                 hintStyle: TextStyle(
                   color: MyAppTheme.textSecondaryColor,
                   fontSize: 16,

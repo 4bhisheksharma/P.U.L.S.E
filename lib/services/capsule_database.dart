@@ -34,10 +34,11 @@ class CapsuleDatabase {
 
   /// Get a capsule by ID
   static VoiceCapsule? getCapsuleById(String id) {
-    return box.values.firstWhere(
-      (capsule) => capsule.id == id,
-      orElse: () => throw Exception('Capsule not found'),
-    );
+    try {
+      return box.values.firstWhere((capsule) => capsule.id == id);
+    } catch (_) {
+      return null;
+    }
   }
 
   /// Add a new capsule

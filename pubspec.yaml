@@ -1,5 +1,5 @@
 name: pulse
-description: "A new Flutter project."
+description: "P.U.L.S.E - Personal Unseen Locker for Special Experience"
 
 publish_to: "none" # Remove this line if you wish to publish to pub.dev
 
@@ -13,6 +13,8 @@ dependencies:
     sdk: flutter
 
   cupertino_icons: ^1.0.8
+  google_fonts: ^6.2.1
+  share_plus: ^10.1.4
   audioplayers: ^6.5.1
   record: ^6.1.2
   uuid: ^4.5.1

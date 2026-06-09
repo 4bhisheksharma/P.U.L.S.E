@@ -197,7 +197,7 @@ class _RecordingScreenState extends State<RecordingScreen> {
       },
     );
 
-    if (pickedDate != null) {
+    if (pickedDate != null && mounted) {
       final TimeOfDay? pickedTime = await showTimePicker(
         context: context,
         initialTime: TimeOfDay.now(),
@@ -390,7 +390,7 @@ class _RecordingScreenState extends State<RecordingScreen> {
             const SizedBox(height: 16),
             LinearProgressIndicator(
               value: _recordDuration / maxDuration,
-              backgroundColor: theme.colorScheme.primary.withOpacity(0.1),
+              backgroundColor: theme.colorScheme.primary.withValues(alpha: 0.1),
               valueColor: AlwaysStoppedAnimation<Color>(
                 theme.colorScheme.primary,
               ),
@@ -413,7 +413,7 @@ class _RecordingScreenState extends State<RecordingScreen> {
     double size = 64,
   }) {
     return Material(
-      color: color.withOpacity(0.15),
+      color: color.withValues(alpha: 0.15),
       borderRadius: BorderRadius.circular(size / 2),
       child: InkWell(
         onTap: onPressed,
@@ -470,6 +470,13 @@ class _RecordingScreenState extends State<RecordingScreen> {
           children: EmotionTag.values.map((emotion) {
             final isSelected = _selectedEmotion == emotion;
             return FilterChip(
+              avatar: Icon(
+                emotion.icon,
+                size: 18,
+                color: isSelected
+                    ? theme.colorScheme.primary
+                    : theme.iconTheme.color,
+              ),
               label: Text(emotion.displayName),
               selected: isSelected,
               onSelected: _isRecording
@@ -479,7 +486,7 @@ class _RecordingScreenState extends State<RecordingScreen> {
                         _selectedEmotion = selected ? emotion : null;
                       });
                     },
-              selectedColor: theme.colorScheme.primary.withOpacity(0.2),
+              selectedColor: theme.colorScheme.primary.withValues(alpha: 0.2),
               checkmarkColor: theme.colorScheme.primary,
             );
           }).toList(),
@@ -534,7 +541,7 @@ class _RecordingScreenState extends State<RecordingScreen> {
             ),
             Icon(
               Icons.chevron_right,
-              color: theme.iconTheme.color?.withOpacity(0.5),
+              color: theme.iconTheme.color?.withValues(alpha: 0.5),
             ),
           ],
         ),

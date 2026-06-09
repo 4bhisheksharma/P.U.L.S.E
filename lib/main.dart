@@ -10,10 +10,17 @@ void main() async {
   await CapsuleDatabase.init();
 
   // Initialize notification service
-  await NotificationService().initialize();
+  final notificationService = NotificationService();
+  await notificationService.initialize();
 
   // Request notification permissions
-  await NotificationService().requestPermissions();
+  await notificationService.requestPermissions();
+
+  // Reschedule notifications for existing locked capsules
+  await notificationService.rescheduleAllCapsuleNotifications();
+
+  // Capture cold-start notification tap before UI is ready
+  await notificationService.handleAppLaunchNotification();
 
   runApp(const MyApp());
 }

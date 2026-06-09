@@ -1,26 +1,32 @@
+import 'package:flutter/material.dart';
+
 /// Enum representing different emotional states when recording a capsule
 enum EmotionTag {
-  hopeful('Hopeful', '🌟', 'Feeling optimistic about the future'),
-  grateful('Grateful', '🙏', 'Thankful for what you have'),
-  anxious('Anxious', '😰', 'Feeling worried or nervous'),
-  excited('Excited', '🎉', 'Full of enthusiasm and energy'),
-  sad('Sad', '😢', 'Feeling down or melancholic'),
-  confused('Confused', '🤔', 'Uncertain about something'),
-  determined('Determined', '💪', 'Focused and resolved'),
-  nostalgic('Nostalgic', '🌅', 'Reminiscing about the past'),
-  peaceful('Peaceful', '🧘', 'Calm and content'),
-  ambitious('Ambitious', '🚀', 'Driven to achieve goals'),
-  reflective('Reflective', '💭', 'Deep in thought'),
-  joyful('Joyful', '😊', 'Happy and cheerful');
+  hopeful('Hopeful', Icons.auto_awesome, 'Feeling optimistic about the future'),
+  grateful(
+    'Grateful',
+    Icons.volunteer_activism,
+    'Thankful for what you have',
+  ),
+  anxious('Anxious', Icons.psychology_alt, 'Feeling worried or nervous'),
+  excited('Excited', Icons.celebration, 'Full of enthusiasm and energy'),
+  sad('Sad', Icons.sentiment_dissatisfied, 'Feeling down or melancholic'),
+  confused('Confused', Icons.help_outline, 'Uncertain about something'),
+  determined('Determined', Icons.fitness_center, 'Focused and resolved'),
+  nostalgic('Nostalgic', Icons.wb_twilight, 'Reminiscing about the past'),
+  peaceful('Peaceful', Icons.spa, 'Calm and content'),
+  ambitious('Ambitious', Icons.rocket_launch, 'Driven to achieve goals'),
+  reflective('Reflective', Icons.lightbulb_outline, 'Deep in thought'),
+  joyful('Joyful', Icons.sentiment_very_satisfied, 'Happy and cheerful');
 
   final String label;
-  final String emoji;
+  final IconData icon;
   final String description;
 
-  const EmotionTag(this.label, this.emoji, this.description);
+  const EmotionTag(this.label, this.icon, this.description);
 
-  /// Get display name with emoji
-  String get displayName => '$emoji $label';
+  /// Get display name with label only (icon rendered separately in UI)
+  String get displayName => label;
 
   /// Convert from string value
   static EmotionTag? fromString(String? value) {
@@ -47,14 +53,14 @@ enum CapsuleState {
   opened;
 
   /// Get icon for the state
-  String get icon {
+  IconData get icon {
     switch (this) {
       case CapsuleState.locked:
-        return '🔒';
+        return Icons.lock;
       case CapsuleState.unlockable:
-        return '⏰';
+        return Icons.lock_open;
       case CapsuleState.opened:
-        return '✅';
+        return Icons.check_circle;
     }
   }
 
@@ -62,11 +68,11 @@ enum CapsuleState {
   String get colorHex {
     switch (this) {
       case CapsuleState.locked:
-        return '#7C73FF'; // Purple
+        return '#7C73FF';
       case CapsuleState.unlockable:
-        return '#FFB74D'; // Orange
+        return '#FFB74D';
       case CapsuleState.opened:
-        return '#4CAF50'; // Green
+        return '#4CAF50';
     }
   }
 }

@@ -23,7 +23,6 @@ class _LiveCountdownTimerState extends State<LiveCountdownTimer> {
     super.initState();
     _updateTimeRemaining();
 
-    // Only start timer if capsule is locked
     if (widget.capsule.isLocked) {
       _timer = Timer.periodic(const Duration(seconds: 1), (_) {
         if (mounted) {
@@ -51,7 +50,7 @@ class _LiveCountdownTimerState extends State<LiveCountdownTimer> {
     final difference = unlockDate.difference(now);
 
     if (difference.isNegative) {
-      return 'Ready to unlock! ⏰';
+      return 'Ready to unlock!';
     }
 
     if (difference.inSeconds < 60) {
@@ -75,16 +74,31 @@ class _LiveCountdownTimerState extends State<LiveCountdownTimer> {
 
   @override
   Widget build(BuildContext context) {
-    return Text(
-      _timeRemaining,
-      style:
-          widget.textStyle ??
-          Theme.of(context).textTheme.bodySmall?.copyWith(
-            color: widget.capsule.isLocked
-                ? Colors.orange.shade300
-                : Colors.green.shade300,
-            fontWeight: FontWeight.w600,
+    final isReady = _timeRemaining == 'Ready to unlock!';
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (isReady) ...[
+          Icon(
+            Icons.lock_open_outlined,
+            size: 14,
+            color: widget.textStyle?.color ?? Colors.green.shade300,
           ),
+          const SizedBox(width: 4),
+        ],
+        Text(
+          _timeRemaining,
+          style:
+              widget.textStyle ??
+              Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: widget.capsule.isLocked
+                    ? Colors.orange.shade300
+                    : Colors.green.shade300,
+                fontWeight: FontWeight.w600,
+              ),
+        ),
+      ],
     );
   }
 }

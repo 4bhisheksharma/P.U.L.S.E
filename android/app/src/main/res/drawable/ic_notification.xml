@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- White silhouette for status bar (Android tints small icons automatically) -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M6,10h12c1.1,0 2,0.9 2,2s-0.9,2 -2,2H6c-1.1,0 -2,-0.9 -2,-2s0.9,-2 2,-2z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M9.5,12m-1.5,0a1.5,1.5 0,1 1,3 0a1.5,1.5 0,1 1,-3 0" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M15.5,11h2c0.55,0 1,0.45 1,1v2c0,0.55 -0.45,1 -1,1h-2c-0.55,0 -1,-0.45 -1,-1v-2c0,-0.55 0.45,-1 1,-1z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M15,15.5h4v1.5h-4z" />
+</vector>

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import 'package:pulse/models/models.dart';
@@ -17,6 +18,7 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen> {
   final AudioPlayer _audioPlayer = AudioPlayer();
   bool _isPlaying = false;
   bool _isLoading = true;
+  bool _isPrepared = false;
   Duration _duration = Duration.zero;
   Duration _position = Duration.zero;
   String? _errorMessage;
@@ -35,36 +37,36 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen> {
 
   Future<void> _setupAudioPlayer() async {
     try {
-      // Listen to player state changes
+      final file = File(widget.capsule.audioFilePath);
+      if (!await file.exists()) {
+        setState(() {
+          _errorMessage = 'Audio file not found';
+          _isLoading = false;
+        });
+        return;
+      }
+
       _audioPlayer.onPlayerStateChanged.listen((state) {
         if (mounted) {
           setState(() {
             _isPlaying = state == PlayerState.playing;
-            _isLoading = false;
           });
         }
       });
 
-      // Listen to duration changes
       _audioPlayer.onDurationChanged.listen((duration) {
-        if (mounted) {
-          setState(() {
-            _duration = duration;
-          });
+        if (mounted && duration > Duration.zero) {
+          setState(() => _duration = duration);
         }
       });
 
-      // Listen to position changes
       _audioPlayer.onPositionChanged.listen((position) {
         if (mounted) {
-          setState(() {
-            _position = position;
-          });
+          setState(() => _position = position);
         }
       });
 
-      // Listen to completion
-      _audioPlayer.onPlayerComplete.listen((event) {
+      _audioPlayer.onPlayerComplete.listen((_) {
         if (mounted) {
           setState(() {
             _isPlaying = false;
@@ -73,17 +75,30 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen> {
         }
       });
 
-      // Set audio source
-      await _audioPlayer.setSourceDeviceFile(widget.capsule.audioFilePath);
-      setState(() => _isLoading = false);
+      await _audioPlayer.setPlayerMode(PlayerMode.mediaPlayer);
+      await _audioPlayer.setReleaseMode(ReleaseMode.stop);
 
-      // Auto-play when opened
-      await _playPause();
+      final source = DeviceFileSource(widget.capsule.audioFilePath);
+      await _audioPlayer.play(source);
+
+      final duration = await _audioPlayer.getDuration();
+      _isPrepared = true;
+
+      if (mounted) {
+        setState(() {
+          _duration = duration != null && duration > Duration.zero
+              ? duration
+              : Duration(seconds: widget.capsule.durationInSeconds);
+          _isLoading = false;
+        });
+      }
     } catch (e) {
-      setState(() {
-        _errorMessage = 'Failed to load audio: $e';
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _errorMessage = 'Failed to load audio: $e';
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -91,11 +106,28 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen> {
     try {
       if (_isPlaying) {
         await _audioPlayer.pause();
-      } else {
-        await _audioPlayer.resume();
+        return;
       }
+
+      if (!_isPrepared) {
+        await _audioPlayer.setSource(
+          DeviceFileSource(widget.capsule.audioFilePath),
+        );
+        _isPrepared = true;
+      }
+
+      if (_position >= _duration && _duration > Duration.zero) {
+        await _audioPlayer.seek(Duration.zero);
+      }
+
+      await _audioPlayer.resume();
     } catch (e) {
-      _showError('Playback error: $e');
+      try {
+        await _audioPlayer.play(DeviceFileSource(widget.capsule.audioFilePath));
+        _isPrepared = true;
+      } catch (playError) {
+        _showError('Playback error: $playError');
+      }
     }
   }
 
@@ -104,6 +136,8 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen> {
       await _audioPlayer.stop();
       setState(() {
         _position = Duration.zero;
+        _isPlaying = false;
+        _isPrepared = false;
       });
     } catch (e) {
       _showError('Stop error: $e');
@@ -131,6 +165,11 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen> {
     return '$minutes:$seconds';
   }
 
+  double get _sliderMax {
+    final maxSeconds = _duration.inSeconds.toDouble();
+    return maxSeconds > 0 ? maxSeconds : 1;
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -145,23 +184,30 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               const Spacer(),
-
-              // Capsule info card
               Container(
                 padding: const EdgeInsets.all(24),
                 decoration: BoxDecoration(
                   color: theme.cardColor,
                   borderRadius: BorderRadius.circular(24),
-                  border: Border.all(color: MyAppTheme.borderColor, width: 1.5),
                 ),
                 child: Column(
                   children: [
-                    // Emotion emoji
                     if (emotion != null)
-                      Text(emotion.emoji, style: const TextStyle(fontSize: 64)),
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: theme.colorScheme.primary.withValues(
+                            alpha: 0.12,
+                          ),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(
+                          emotion.icon,
+                          size: 48,
+                          color: theme.colorScheme.primary,
+                        ),
+                      ),
                     const SizedBox(height: 16),
-
-                    // Title
                     Text(
                       widget.capsule.title,
                       style: theme.textTheme.headlineSmall?.copyWith(
@@ -170,8 +216,6 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen> {
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 8),
-
-                    // Description
                     if (widget.capsule.description != null)
                       Text(
                         widget.capsule.description!,
@@ -181,8 +225,6 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen> {
                         textAlign: TextAlign.center,
                       ),
                     const SizedBox(height: 16),
-
-                    // Recorded date
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
@@ -199,8 +241,6 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen> {
                       ],
                     ),
                     const SizedBox(height: 8),
-
-                    // Unlocked date
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
@@ -221,10 +261,7 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen> {
                   ],
                 ),
               ),
-
               const Spacer(),
-
-              // Error message
               if (_errorMessage != null)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 16),
@@ -234,57 +271,34 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen> {
                     textAlign: TextAlign.center,
                   ),
                 ),
-
-              // Audio player controls
               if (_errorMessage == null) ...[
-                // Progress bar
-                Column(
-                  children: [
-                    SliderTheme(
-                      data: SliderThemeData(
-                        trackHeight: 4,
-                        thumbShape: const RoundSliderThumbShape(
-                          enabledThumbRadius: 8,
-                        ),
-                        overlayShape: const RoundSliderOverlayShape(
-                          overlayRadius: 16,
-                        ),
+                Slider(
+                  value: _position.inSeconds.toDouble().clamp(0, _sliderMax),
+                  max: _sliderMax,
+                  onChanged: _isLoading
+                      ? null
+                      : (value) => _seek(Duration(seconds: value.toInt())),
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        _formatDuration(_position),
+                        style: theme.textTheme.bodySmall,
                       ),
-                      child: Slider(
-                        value: _position.inSeconds.toDouble(),
-                        max: _duration.inSeconds.toDouble(),
-                        onChanged: _isLoading
-                            ? null
-                            : (value) {
-                                _seek(Duration(seconds: value.toInt()));
-                              },
+                      Text(
+                        _formatDuration(_duration),
+                        style: theme.textTheme.bodySmall,
                       ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            _formatDuration(_position),
-                            style: theme.textTheme.bodySmall,
-                          ),
-                          Text(
-                            _formatDuration(_duration),
-                            style: theme.textTheme.bodySmall,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
                 const SizedBox(height: 32),
-
-                // Playback controls
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    // Stop button
                     IconButton(
                       onPressed: _isLoading ? null : _stop,
                       icon: const Icon(Icons.stop),
@@ -292,12 +306,12 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen> {
                       color: theme.colorScheme.primary,
                     ),
                     const SizedBox(width: 32),
-
-                    // Play/Pause button
                     Container(
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        color: theme.colorScheme.primary.withOpacity(0.15),
+                        color: theme.colorScheme.primary.withValues(
+                          alpha: 0.15,
+                        ),
                         border: Border.all(
                           color: theme.colorScheme.primary,
                           width: 2,
@@ -319,8 +333,6 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen> {
                       ),
                     ),
                     const SizedBox(width: 32),
-
-                    // Replay button (seek to start)
                     IconButton(
                       onPressed: _isLoading ? null : () => _seek(Duration.zero),
                       icon: const Icon(Icons.replay),
@@ -330,7 +342,6 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen> {
                   ],
                 ),
               ],
-
               const Spacer(),
             ],
           ),

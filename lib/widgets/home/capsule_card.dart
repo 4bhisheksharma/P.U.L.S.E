@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:pulse/models/models.dart';
+import 'package:pulse/theme/my_app_theme.dart';
 
 class CapsuleCard extends StatelessWidget {
   final VoiceCapsule capsule;
@@ -23,57 +24,42 @@ class CapsuleCard extends StatelessWidget {
     final isDark = theme.brightness == Brightness.dark;
     final emotion = EmotionTag.fromString(capsule.emotionTag);
 
-    return Container(
-      decoration: BoxDecoration(
-        color: theme.cardColor,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: _getBorderColor(isDark), width: 1.5),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.3),
-
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          // Main content
-          Padding(
-            padding: const EdgeInsets.all(20),
-            child: Row(
-              children: [
-                // Play/Lock button
-                _buildActionButton(context),
-                const SizedBox(width: 16),
-
-                // Title and info
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _buildTitle(theme),
-                      const SizedBox(height: 6),
-                      _buildSubtitle(theme, emotion),
-                    ],
+    return Material(
+      color: theme.cardColor,
+      borderRadius: BorderRadius.circular(24),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(24),
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(20),
+              child: Row(
+                children: [
+                  _buildStatusIcon(context),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildTitle(theme),
+                        const SizedBox(height: 6),
+                        _buildSubtitle(theme, emotion),
+                      ],
+                    ),
                   ),
-                ),
-
-                // More options
-                _buildPopupMenu(context, theme, isDark),
-              ],
+                  _buildPopupMenu(context, theme, isDark),
+                ],
+              ),
             ),
-          ),
-
-          // Progress bar (only for locked capsules)
-          if (capsule.isLocked) _buildProgressBar(theme),
-        ],
+            if (capsule.isLocked) _buildProgressBar(theme),
+          ],
+        ),
       ),
     );
   }
 
-  Widget _buildActionButton(BuildContext context) {
+  Widget _buildStatusIcon(BuildContext context) {
     final theme = Theme.of(context);
     final IconData icon;
     final Color color;
@@ -85,32 +71,33 @@ class CapsuleCard extends StatelessWidget {
         break;
       case CapsuleState.unlockable:
         icon = Icons.lock_open;
-        color = Colors.orange;
+        color = MyAppTheme.warningColor;
         break;
       case CapsuleState.opened:
         icon = Icons.play_arrow_rounded;
-        color = Colors.green;
+        color = MyAppTheme.successColor;
         break;
     }
 
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 50,
-        height: 50,
-        decoration: BoxDecoration(
-          color: color.withOpacity(0.15),
-          borderRadius: BorderRadius.circular(14),
-        ),
-        child: Icon(icon, color: color, size: 28),
+    return Container(
+      width: 50,
+      height: 50,
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(14),
       ),
+      child: Icon(icon, color: color, size: 28),
     );
   }
 
   Widget _buildTitle(ThemeData theme) {
     return Row(
       children: [
-        Text(capsule.state.icon, style: const TextStyle(fontSize: 16)),
+        Icon(
+          capsule.state.icon,
+          size: 16,
+          color: theme.colorScheme.primary,
+        ),
         const SizedBox(width: 6),
         Expanded(
           child: Text(
@@ -131,7 +118,7 @@ class CapsuleCard extends StatelessWidget {
     return Row(
       children: [
         if (emotion != null) ...[
-          Text(emotion.emoji, style: const TextStyle(fontSize: 14)),
+          Icon(emotion.icon, size: 14, color: theme.colorScheme.primary),
           const SizedBox(width: 4),
         ],
         Expanded(
@@ -146,7 +133,7 @@ class CapsuleCard extends StatelessWidget {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
           decoration: BoxDecoration(
-            color: theme.colorScheme.primary.withOpacity(0.1),
+            color: theme.colorScheme.primary.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(8),
           ),
           child: Text(
@@ -192,13 +179,13 @@ class CapsuleCard extends StatelessWidget {
         const SizedBox(height: 8),
         ClipRRect(
           borderRadius: const BorderRadius.only(
-            bottomLeft: Radius.circular(20),
-            bottomRight: Radius.circular(20),
+            bottomLeft: Radius.circular(24),
+            bottomRight: Radius.circular(24),
           ),
           child: LinearProgressIndicator(
             value: capsule.unlockProgress,
-            minHeight: 6,
-            backgroundColor: theme.colorScheme.primary.withOpacity(0.1),
+            minHeight: 4,
+            backgroundColor: theme.colorScheme.primary.withValues(alpha: 0.1),
             valueColor: AlwaysStoppedAnimation<Color>(
               theme.colorScheme.primary,
             ),
@@ -209,16 +196,26 @@ class CapsuleCard extends StatelessWidget {
   }
 
   Widget _buildPopupMenu(BuildContext context, ThemeData theme, bool isDark) {
-    return PopupMenuButton(
+    return PopupMenuButton<String>(
       icon: Icon(
         Icons.more_horiz,
         color: isDark ? Colors.grey[400] : Colors.grey[600],
       ),
       color: theme.cardColor,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      onSelected: (value) {
+        switch (value) {
+          case 'share':
+            onShare?.call();
+          case 'rename':
+            onRename?.call();
+          case 'delete':
+            onDelete?.call();
+        }
+      },
       itemBuilder: (context) => [
         PopupMenuItem(
-          onTap: onShare,
+          value: 'share',
           child: Row(
             children: [
               Icon(Icons.share, size: 20, color: theme.iconTheme.color),
@@ -228,7 +225,7 @@ class CapsuleCard extends StatelessWidget {
           ),
         ),
         PopupMenuItem(
-          onTap: onRename,
+          value: 'rename',
           child: Row(
             children: [
               Icon(Icons.edit, size: 20, color: theme.iconTheme.color),
@@ -237,9 +234,9 @@ class CapsuleCard extends StatelessWidget {
             ],
           ),
         ),
-        PopupMenuItem(
-          onTap: onDelete,
-          child: const Row(
+        const PopupMenuItem(
+          value: 'delete',
+          child: Row(
             children: [
               Icon(Icons.delete, size: 20, color: Colors.red),
               SizedBox(width: 12),
@@ -249,13 +246,6 @@ class CapsuleCard extends StatelessWidget {
         ),
       ],
     );
-  }
-
-  Color _getBorderColor(bool isDark) {
-    if (capsule.state == CapsuleState.unlockable) {
-      return Colors.orange.withOpacity(0.5);
-    }
-    return isDark ? const Color(0xFF2D2D3A) : const Color(0xFFE0E0E0);
   }
 
   String _getSubtitleText() {

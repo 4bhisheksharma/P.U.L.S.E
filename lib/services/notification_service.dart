@@ -12,24 +12,29 @@ class NotificationService {
   factory NotificationService() => _instance;
   NotificationService._internal();
 
+  static const String _channelId = 'pulse_capsules';
+  static const String _channelName = 'Time Capsules';
+  static const String _channelDescription =
+      'Notifications for time capsule unlocks';
+
   final FlutterLocalNotificationsPlugin _notifications =
       FlutterLocalNotificationsPlugin();
 
   bool _isInitialized = false;
+  bool _canScheduleExactAlarms = true;
+  String? _pendingCapsuleId;
+  bool _isNavigating = false;
 
   /// Initialize notification service
   Future<void> initialize() async {
     if (_isInitialized) return;
 
-    // Initialize timezone data
     tz.initializeTimeZones();
 
-    // Android initialization settings
     const androidSettings = AndroidInitializationSettings(
-      '@mipmap/ic_launcher',
+      '@drawable/ic_notification',
     );
 
-    // iOS initialization settings
     const iosSettings = DarwinInitializationSettings(
       requestAlertPermission: true,
       requestBadgePermission: true,
@@ -46,31 +51,139 @@ class NotificationService {
       onDidReceiveNotificationResponse: _onNotificationTap,
     );
 
+    await _createAndroidNotificationChannel();
+    _canScheduleExactAlarms = await _checkExactAlarmPermission();
+
     _isInitialized = true;
   }
 
-  /// Handle notification tap
-  void _onNotificationTap(NotificationResponse response) async {
-    // Navigate to specific capsule when notification is tapped
-    if (response.payload != null && response.payload!.isNotEmpty) {
-      try {
-        final capsuleId = response.payload!;
-        final capsule = CapsuleDatabase.getCapsuleById(capsuleId);
+  /// Check if app was launched from a notification tap (cold start)
+  Future<void> handleAppLaunchNotification() async {
+    final launchDetails = await _notifications.getNotificationAppLaunchDetails();
+    final response = launchDetails?.notificationResponse;
+    final payload = response?.payload;
 
-        if (capsule != null && navigatorKey.currentContext != null) {
-          navigatorKey.currentState?.push(
-            MaterialPageRoute(
-              builder: (context) => AudioPlayerScreen(capsule: capsule),
-            ),
-          );
-        }
-      } catch (e) {
-        print('Error handling notification tap: $e');
-      }
+    if (launchDetails?.didNotificationLaunchApp == true &&
+        payload != null &&
+        payload.isNotEmpty) {
+      _queueCapsuleNavigation(payload);
     }
   }
 
-  /// Request notification permissions (iOS)
+  /// Call after the first frame when MaterialApp/navigator is ready
+  void processPendingNotificationTap() {
+    if (_pendingCapsuleId == null) return;
+    _navigateToCapsule(_pendingCapsuleId!);
+  }
+
+  Future<void> _createAndroidNotificationChannel() async {
+    final androidPlugin = _notifications
+        .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin
+        >();
+
+    if (androidPlugin != null) {
+      const channel = AndroidNotificationChannel(
+        _channelId,
+        _channelName,
+        description: _channelDescription,
+        importance: Importance.high,
+        playSound: true,
+        enableVibration: true,
+      );
+      await androidPlugin.createNotificationChannel(channel);
+    }
+  }
+
+  Future<bool> _checkExactAlarmPermission() async {
+    final androidPlugin = _notifications
+        .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin
+        >();
+
+    if (androidPlugin == null) return true;
+
+    final canSchedule = await androidPlugin.canScheduleExactNotifications();
+    return canSchedule ?? true;
+  }
+
+  AndroidScheduleMode get _scheduleMode {
+    return _canScheduleExactAlarms
+        ? AndroidScheduleMode.exactAllowWhileIdle
+        : AndroidScheduleMode.inexactAllowWhileIdle;
+  }
+
+  /// Handle notification tap while app is running or in background
+  void _onNotificationTap(NotificationResponse response) {
+    final payload = response.payload;
+    if (payload != null && payload.isNotEmpty) {
+      _queueCapsuleNavigation(payload);
+    }
+  }
+
+  void _queueCapsuleNavigation(String capsuleId) {
+    _pendingCapsuleId = capsuleId;
+
+    final navigator = navigatorKey.currentState;
+    if (navigator == null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        processPendingNotificationTap();
+      });
+      return;
+    }
+
+    _navigateToCapsule(capsuleId);
+  }
+
+  Future<void> _navigateToCapsule(String capsuleId) async {
+    if (_isNavigating) return;
+
+    final navigator = navigatorKey.currentState;
+    if (navigator == null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _navigateToCapsule(capsuleId);
+      });
+      return;
+    }
+
+    try {
+      final capsule = CapsuleDatabase.getCapsuleById(capsuleId);
+      if (capsule == null) {
+        debugPrint('Notification tap: capsule not found ($capsuleId)');
+        _pendingCapsuleId = null;
+        return;
+      }
+
+      if (capsule.isLocked) {
+        debugPrint('Notification tap: capsule still locked ($capsuleId)');
+        _pendingCapsuleId = null;
+        return;
+      }
+
+      var capsuleToPlay = capsule;
+      if (!capsule.hasBeenOpened) {
+        capsuleToPlay = capsule.copyWith(hasBeenOpened: true);
+        await CapsuleDatabase.updateCapsule(capsuleToPlay);
+      }
+
+      _isNavigating = true;
+      _pendingCapsuleId = null;
+
+      navigator.push(
+        MaterialPageRoute(
+          builder: (context) => AudioPlayerScreen(capsule: capsuleToPlay),
+        ),
+      ).whenComplete(() {
+        _isNavigating = false;
+      });
+    } catch (e, stack) {
+      _isNavigating = false;
+      _pendingCapsuleId = null;
+      debugPrint('Error handling notification tap: $e\n$stack');
+    }
+  }
+
+  /// Request notification permissions (iOS) and Android runtime permissions
   Future<bool> requestPermissions() async {
     final androidPlugin = _notifications
         .resolvePlatformSpecificImplementation<
@@ -82,13 +195,13 @@ class NotificationService {
           IOSFlutterLocalNotificationsPlugin
         >();
 
-    // Request Android permission (API 33+)
     bool? androidGranted = true;
     if (androidPlugin != null) {
       androidGranted = await androidPlugin.requestNotificationsPermission();
+      await androidPlugin.requestExactAlarmsPermission();
+      _canScheduleExactAlarms = await _checkExactAlarmPermission();
     }
 
-    // Request iOS permissions
     bool? iosGranted = true;
     if (iosPlugin != null) {
       iosGranted = await iosPlugin.requestPermissions(
@@ -105,7 +218,6 @@ class NotificationService {
   Future<void> scheduleCapsuleUnlockNotification(VoiceCapsule capsule) async {
     if (!_isInitialized) await initialize();
 
-    // Only schedule if unlock date is in the future
     if (capsule.unlockDate.isBefore(DateTime.now())) {
       return;
     }
@@ -113,12 +225,12 @@ class NotificationService {
     final scheduledDate = tz.TZDateTime.from(capsule.unlockDate, tz.local);
 
     await _notifications.zonedSchedule(
-      capsule.id.hashCode, // Use capsule ID hash as notification ID
-      '🔓 Time Capsule Unlocked!',
+      capsule.id.hashCode,
+      'Time Capsule Unlocked',
       '${capsule.title} is ready to open',
       scheduledDate,
       notificationDetails(),
-      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+      androidScheduleMode: _scheduleMode,
       uiLocalNotificationDateInterpretation:
           UILocalNotificationDateInterpretation.absoluteTime,
       payload: capsule.id,
@@ -131,7 +243,6 @@ class NotificationService {
 
     final reminderDate = capsule.unlockDate.subtract(const Duration(days: 1));
 
-    // Only schedule if reminder date is in the future
     if (reminderDate.isBefore(DateTime.now())) {
       return;
     }
@@ -139,12 +250,12 @@ class NotificationService {
     final scheduledDate = tz.TZDateTime.from(reminderDate, tz.local);
 
     await _notifications.zonedSchedule(
-      (capsule.id.hashCode + 1), // Different ID for reminder
-      '⏰ Capsule Unlocking Soon',
+      capsule.id.hashCode + 1,
+      'Capsule Unlocking Soon',
       '${capsule.title} unlocks tomorrow!',
       scheduledDate,
       notificationDetails(),
-      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+      androidScheduleMode: _scheduleMode,
       uiLocalNotificationDateInterpretation:
           UILocalNotificationDateInterpretation.absoluteTime,
       payload: capsule.id,
@@ -154,7 +265,7 @@ class NotificationService {
   /// Cancel notification for a capsule
   Future<void> cancelCapsuleNotification(String capsuleId) async {
     await _notifications.cancel(capsuleId.hashCode);
-    await _notifications.cancel(capsuleId.hashCode + 1); // Cancel reminder too
+    await _notifications.cancel(capsuleId.hashCode + 1);
   }
 
   /// Cancel all notifications
@@ -183,12 +294,15 @@ class NotificationService {
   NotificationDetails notificationDetails() {
     return NotificationDetails(
       android: AndroidNotificationDetails(
-        'pulse_capsules',
-        'Time Capsules',
-        channelDescription: 'Notifications for time capsule unlocks',
+        _channelId,
+        _channelName,
+        channelDescription: _channelDescription,
         importance: Importance.high,
         priority: Priority.high,
-        icon: '@mipmap/ic_launcher',
+        icon: '@drawable/ic_notification',
+        largeIcon: const DrawableResourceAndroidBitmap(
+          '@mipmap/launcher_icon',
+        ),
         color: const Color(0xFF7C73FF),
         playSound: true,
         enableVibration: true,
@@ -218,6 +332,17 @@ class NotificationService {
       return enabled ?? false;
     }
 
-    return true; // Assume enabled on other platforms
+    return true;
+  }
+
+  /// Reschedule notifications for all locked capsules (e.g. after boot)
+  Future<void> rescheduleAllCapsuleNotifications() async {
+    if (!_isInitialized) await initialize();
+
+    final lockedCapsules = CapsuleDatabase.getLockedCapsules();
+    for (final capsule in lockedCapsules) {
+      await scheduleCapsuleUnlockNotification(capsule);
+      await scheduleUnlockReminder(capsule);
+    }
   }
 }
