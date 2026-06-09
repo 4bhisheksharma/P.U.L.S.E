@@ -5,6 +5,7 @@ export 'player/audio_player_screen.dart';
 export 'played/played_capsules_screen.dart';
 export 'notifications/scheduled_notifications_screen.dart';
 export 'stats/stats_screen.dart';
+export 'profile/profile_screen.dart';
 export 'security/security_screen.dart';
 export 'security/pin_setup_screen.dart';
 export 'lock/lock_screen.dart';

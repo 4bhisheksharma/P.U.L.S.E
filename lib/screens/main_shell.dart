@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:pulse/screens/home_screen.dart';
 import 'package:pulse/screens/played/played_capsules_screen.dart';
 import 'package:pulse/screens/stats/stats_screen.dart';
+import 'package:pulse/screens/profile/profile_screen.dart';
 import 'package:pulse/services/notification_service.dart';
 import 'package:pulse/theme/my_app_theme.dart';
 
@@ -19,6 +20,7 @@ class _MainShellState extends State<MainShell> {
     HomeScreen(),
     PlayedCapsulesScreen(),
     StatsScreen(),
+    ProfileScreen(),
   ];
 
   @override
@@ -58,6 +60,11 @@ class _MainShellState extends State<MainShell> {
             icon: Icon(Icons.bar_chart_rounded),
             selectedIcon: Icon(Icons.bar_chart),
             label: 'Stats',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.person_outline_rounded),
+            selectedIcon: Icon(Icons.person_rounded),
+            label: 'Profile',
           ),
         ],
       ),
