@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:pulse/models/models.dart';
 import 'package:pulse/services/capsule_database.dart';
 import 'package:pulse/services/notification_service.dart';
+import 'package:pulse/services/settings_service.dart';
 import 'package:pulse/theme/my_app_theme.dart';
 import 'package:pulse/utils/capsule_actions.dart';
 import 'package:pulse/widgets/common/empty_state.dart';
@@ -21,25 +22,74 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final TextEditingController _searchController = TextEditingController();
-  List<VoiceCapsule> _capsules = [];
+  List<VoiceCapsule> _allCapsules = [];
   List<VoiceCapsule> _filteredCapsules = [];
   bool _isLoading = true;
+
+  late CapsuleSortOption _sortOption;
+  EmotionTag? _emotionFilter;
 
   @override
   void initState() {
     super.initState();
+    _sortOption = CapsuleSortOption.fromName(SettingsService.sortOption);
+    _emotionFilter = EmotionTag.fromString(SettingsService.emotionFilter);
     _loadCapsules();
   }
+
+  bool get _hasActiveFilters =>
+      _emotionFilter != null ||
+      _sortOption != CapsuleSortOption.soonestUnlock;
 
   Future<void> _loadCapsules() async {
     setState(() => _isLoading = true);
 
     final allCapsules = CapsuleDatabase.getAllCapsules();
-    _capsules = allCapsules.where((c) => !c.hasBeenOpened).toList();
-    _capsules.sort((a, b) => a.unlockDate.compareTo(b.unlockDate));
-    _filteredCapsules = _capsules;
+    _allCapsules = allCapsules.where((c) => !c.hasBeenOpened).toList();
+
+    _applyFilters();
 
     setState(() => _isLoading = false);
+  }
+
+  void _applyFilters() {
+    var result = List<VoiceCapsule>.from(_allCapsules);
+
+    // Emotion filter
+    final emotion = _emotionFilter;
+    if (emotion != null) {
+      result = result
+          .where((c) => c.emotionTag == emotion.name)
+          .toList();
+    }
+
+    // Search query
+    final query = _searchController.text.trim().toLowerCase();
+    if (query.isNotEmpty) {
+      result = result.where((capsule) {
+        final titleMatch = capsule.title.toLowerCase().contains(query);
+        final descMatch =
+            capsule.description?.toLowerCase().contains(query) ?? false;
+        return titleMatch || descMatch;
+      }).toList();
+    }
+
+    // Sorting
+    switch (_sortOption) {
+      case CapsuleSortOption.soonestUnlock:
+        result.sort((a, b) => a.unlockDate.compareTo(b.unlockDate));
+        break;
+      case CapsuleSortOption.newestRecorded:
+        result.sort((a, b) => b.recordedDate.compareTo(a.recordedDate));
+        break;
+      case CapsuleSortOption.longestDuration:
+        result.sort(
+          (a, b) => b.durationInSeconds.compareTo(a.durationInSeconds),
+        );
+        break;
+    }
+
+    _filteredCapsules = result;
   }
 
   @override
@@ -50,6 +100,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Scaffold(
       appBar: AppBar(
         backgroundColor: MyAppTheme.backgroundColor,
@@ -64,6 +115,14 @@ class _HomeScreenState extends State<HomeScreen> {
           ],
         ),
         actions: [
+          IconButton(
+            icon: Icon(
+              _hasActiveFilters ? Icons.tune_rounded : Icons.tune_outlined,
+              color: _hasActiveFilters ? theme.colorScheme.primary : null,
+            ),
+            tooltip: 'Sort & filter',
+            onPressed: _showSortFilterSheet,
+          ),
           IconButton(
             icon: const Icon(Icons.notifications_outlined),
             tooltip: 'Scheduled notifications',
@@ -94,8 +153,11 @@ class _HomeScreenState extends State<HomeScreen> {
                 SearchResultsCounter(
                   query: _searchController.text,
                   resultCount: _filteredCapsules.length,
-                  totalCount: _capsules.length,
+                  totalCount: _allCapsules.length,
                 ),
+              ] else if (_hasActiveFilters) ...[
+                const SizedBox(height: 16),
+                _buildActiveFiltersBar(theme),
               ],
               const SizedBox(height: 24),
               Expanded(
@@ -114,30 +176,178 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  void _handleSearch(String query) {
+  Widget _buildActiveFiltersBar(ThemeData theme) {
+    return Row(
+      children: [
+        Icon(_sortOption.icon, size: 16, color: theme.colorScheme.primary),
+        const SizedBox(width: 6),
+        Flexible(
+          child: Text(
+            _emotionFilter != null
+                ? '${_sortOption.label} · ${_emotionFilter!.label}'
+                : _sortOption.label,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.primary,
+              fontWeight: FontWeight.w600,
+            ),
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+        const Spacer(),
+        InkWell(
+          borderRadius: BorderRadius.circular(8),
+          onTap: _clearFilters,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.close_rounded,
+                  size: 14,
+                  color: theme.textTheme.bodySmall?.color,
+                ),
+                const SizedBox(width: 4),
+                Text('Reset', style: theme.textTheme.bodySmall),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _clearFilters() {
     setState(() {
-      if (query.isEmpty) {
-        _filteredCapsules = _capsules;
-      } else {
-        _filteredCapsules = _capsules.where((capsule) {
-          final titleMatch = capsule.title.toLowerCase().contains(
-            query.toLowerCase(),
-          );
-          final descMatch =
-              capsule.description?.toLowerCase().contains(
-                query.toLowerCase(),
-              ) ??
-              false;
-          return titleMatch || descMatch;
-        }).toList();
-      }
+      _sortOption = CapsuleSortOption.soonestUnlock;
+      _emotionFilter = null;
+      _applyFilters();
     });
+    SettingsService.setSortOption(_sortOption.name);
+    SettingsService.setEmotionFilter(null);
+  }
+
+  Future<void> _showSortFilterSheet() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (sheetContext) {
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            final theme = Theme.of(context);
+
+            void updateSort(CapsuleSortOption option) {
+              setSheetState(() => _sortOption = option);
+              setState(() => _applyFilters());
+              SettingsService.setSortOption(option.name);
+            }
+
+            void updateEmotion(EmotionTag? emotion) {
+              setSheetState(() => _emotionFilter = emotion);
+              setState(() => _applyFilters());
+              SettingsService.setEmotionFilter(emotion?.name);
+            }
+
+            return SafeArea(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Center(
+                      child: Container(
+                        width: 40,
+                        height: 4,
+                        margin: const EdgeInsets.only(bottom: 20),
+                        decoration: BoxDecoration(
+                          color: MyAppTheme.borderColor,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                    ),
+                    Row(
+                      children: [
+                        Icon(Icons.sort_rounded,
+                            color: theme.colorScheme.primary),
+                        const SizedBox(width: 10),
+                        Text('Sort by', style: theme.textTheme.titleMedium),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    ...CapsuleSortOption.values.map((option) {
+                      final selected = _sortOption == option;
+                      return _OptionTile(
+                        icon: option.icon,
+                        label: option.label,
+                        selected: selected,
+                        onTap: () => updateSort(option),
+                      );
+                    }),
+                    const SizedBox(height: 24),
+                    Row(
+                      children: [
+                        Icon(Icons.mood_rounded,
+                            color: theme.colorScheme.primary),
+                        const SizedBox(width: 10),
+                        Text('Filter by emotion',
+                            style: theme.textTheme.titleMedium),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        FilterChip(
+                          label: const Text('All'),
+                          selected: _emotionFilter == null,
+                          onSelected: (_) => updateEmotion(null),
+                          selectedColor:
+                              theme.colorScheme.primary.withValues(alpha: 0.2),
+                          checkmarkColor: theme.colorScheme.primary,
+                        ),
+                        ...EmotionTag.values.map((emotion) {
+                          final selected = _emotionFilter == emotion;
+                          return FilterChip(
+                            avatar: Icon(
+                              emotion.icon,
+                              size: 18,
+                              color: selected
+                                  ? theme.colorScheme.primary
+                                  : theme.iconTheme.color,
+                            ),
+                            label: Text(emotion.label),
+                            selected: selected,
+                            onSelected: (_) =>
+                                updateEmotion(selected ? null : emotion),
+                            selectedColor: theme.colorScheme.primary
+                                .withValues(alpha: 0.2),
+                            checkmarkColor: theme.colorScheme.primary,
+                          );
+                        }),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _handleSearch(String query) {
+    setState(() => _applyFilters());
   }
 
   Widget _buildRecordingsList() {
     if (_filteredCapsules.isEmpty) {
-      final hasNoCapsules = _capsules.isEmpty && _searchController.text.isEmpty;
-      final isSearching = _searchController.text.isNotEmpty;
+      final hasNoCapsules = _allCapsules.isEmpty &&
+          _searchController.text.isEmpty &&
+          _emotionFilter == null;
+      final isSearching =
+          _searchController.text.isNotEmpty || _emotionFilter != null;
 
       return ListView(
         physics: const AlwaysScrollableScrollPhysics(),
@@ -156,14 +366,14 @@ class _HomeScreenState extends State<HomeScreen> {
             subtitle: hasNoCapsules
                 ? 'Create your first voice capsule for the future'
                 : isSearching
-                ? 'Try adjusting your search or clear filters'
+                ? 'Try adjusting your search or filters'
                 : 'Check "Played Capsules" to see opened messages',
-            actionLabel: isSearching ? 'Clear Search' : null,
+            actionLabel: isSearching ? 'Clear Filters' : null,
             actionIcon: Icons.clear_all_rounded,
             onAction: isSearching
                 ? () {
                     _searchController.clear();
-                    _handleSearch('');
+                    _clearFilters();
                   }
                 : null,
             footerText: hasNoCapsules ? 'Pull down to refresh' : null,
@@ -283,6 +493,69 @@ class _HomeScreenState extends State<HomeScreen> {
         },
         backgroundColor: MyAppTheme.primaryColor,
         child: const Icon(Icons.add, size: 32, color: Colors.white),
+      ),
+    );
+  }
+}
+
+class _OptionTile extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _OptionTile({
+    required this.icon,
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Material(
+        color: selected
+            ? theme.colorScheme.primary.withValues(alpha: 0.12)
+            : theme.scaffoldBackgroundColor,
+        borderRadius: BorderRadius.circular(14),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(14),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            child: Row(
+              children: [
+                Icon(
+                  icon,
+                  size: 20,
+                  color: selected
+                      ? theme.colorScheme.primary
+                      : theme.iconTheme.color,
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Text(
+                    label,
+                    style: theme.textTheme.bodyLarge?.copyWith(
+                      color: selected ? theme.colorScheme.primary : null,
+                      fontWeight:
+                          selected ? FontWeight.w600 : FontWeight.normal,
+                    ),
+                  ),
+                ),
+                if (selected)
+                  Icon(
+                    Icons.check_rounded,
+                    size: 20,
+                    color: theme.colorScheme.primary,
+                  ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }

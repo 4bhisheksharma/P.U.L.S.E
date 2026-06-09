@@ -5,6 +5,7 @@ import 'package:pulse/models/models.dart';
 import 'package:pulse/services/capsule_database.dart';
 import 'package:pulse/services/notification_service.dart';
 import 'package:pulse/theme/my_app_theme.dart';
+import 'package:pulse/widgets/recording/recording_waveform.dart';
 import 'package:record/record.dart';
 import 'package:uuid/uuid.dart';
 
@@ -29,6 +30,14 @@ class _RecordingScreenState extends State<RecordingScreen> {
   DateTime? _unlockDate;
   EmotionTag? _selectedEmotion;
 
+  StreamSubscription<Amplitude>? _amplitudeSub;
+  static const int _waveformBars = 48;
+  final List<double> _amplitudes = List<double>.filled(
+    _waveformBars,
+    0.0,
+    growable: true,
+  );
+
   static const int maxDuration = 300; // 5 minutes
 
   @override
@@ -40,10 +49,38 @@ class _RecordingScreenState extends State<RecordingScreen> {
   @override
   void dispose() {
     _timer?.cancel();
+    _amplitudeSub?.cancel();
     _audioRecorder.dispose();
     _titleController.dispose();
     _descriptionController.dispose();
     super.dispose();
+  }
+
+  void _startAmplitudeMonitoring() {
+    _amplitudeSub?.cancel();
+    _amplitudeSub = _audioRecorder
+        .onAmplitudeChanged(const Duration(milliseconds: 90))
+        .listen((amp) {
+          if (!mounted || _isPaused) return;
+          setState(() {
+            _amplitudes.removeAt(0);
+            _amplitudes.add(_normalizeAmplitude(amp.current));
+          });
+        });
+  }
+
+  /// Converts a dBFS reading (roughly -45..0) into a 0..1 bar height.
+  double _normalizeAmplitude(double db) {
+    const minDb = -45.0;
+    if (db.isNaN || db.isInfinite) return 0.05;
+    final clamped = db.clamp(minDb, 0.0);
+    return ((clamped - minDb) / -minDb).clamp(0.05, 1.0);
+  }
+
+  void _resetWaveform() {
+    for (var i = 0; i < _amplitudes.length; i++) {
+      _amplitudes[i] = 0.0;
+    }
   }
 
   Future<void> _checkPermissions() async {
@@ -76,9 +113,11 @@ class _RecordingScreenState extends State<RecordingScreen> {
           _isPaused = false;
           _recordDuration = 0;
           _audioPath = filePath;
+          _resetWaveform();
         });
 
         _startTimer();
+        _startAmplitudeMonitoring();
       }
     } catch (e) {
       _showError('Failed to start recording: $e');
@@ -99,6 +138,8 @@ class _RecordingScreenState extends State<RecordingScreen> {
 
   Future<void> _stopRecording() async {
     _timer?.cancel();
+    await _amplitudeSub?.cancel();
+    _amplitudeSub = null;
     final path = await _audioRecorder.stop();
 
     setState(() {
@@ -340,7 +381,17 @@ class _RecordingScreenState extends State<RecordingScreen> {
               color: theme.textTheme.bodyMedium?.color,
             ),
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 20),
+
+          // Live waveform visualization
+          if (_isRecording)
+            RecordingWaveform(
+              amplitudes: _amplitudes,
+              color: theme.colorScheme.primary,
+              isActive: !_isPaused,
+            ),
+          if (_isRecording) const SizedBox(height: 20),
+          const SizedBox(height: 4),
 
           // Recording controls
           Row(
@@ -369,6 +420,7 @@ class _RecordingScreenState extends State<RecordingScreen> {
                       _hasRecording = false;
                       _recordDuration = 0;
                       _audioPath = null;
+                      _resetWaveform();
                     });
                   },
                   color: Colors.orange,

@@ -41,6 +41,25 @@ enum EmotionTag {
   }
 }
 
+/// Options for sorting the capsule list on the Home screen
+enum CapsuleSortOption {
+  soonestUnlock('Soonest unlock', Icons.lock_clock),
+  newestRecorded('Newest recorded', Icons.fiber_new),
+  longestDuration('Longest duration', Icons.timelapse);
+
+  final String label;
+  final IconData icon;
+
+  const CapsuleSortOption(this.label, this.icon);
+
+  static CapsuleSortOption fromName(String? name) {
+    return CapsuleSortOption.values.firstWhere(
+      (o) => o.name == name,
+      orElse: () => CapsuleSortOption.soonestUnlock,
+    );
+  }
+}
+
 /// Enum representing the current state of a capsule
 enum CapsuleState {
   /// Capsule is still locked, waiting for unlock date
