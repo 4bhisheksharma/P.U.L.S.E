@@ -3,6 +3,7 @@ import 'package:pulse/screens/home_screen.dart';
 import 'package:pulse/screens/played/played_capsules_screen.dart';
 import 'package:pulse/screens/stats/stats_screen.dart';
 import 'package:pulse/screens/profile/profile_screen.dart';
+import 'package:pulse/services/capsule_notifier.dart';
 import 'package:pulse/services/notification_service.dart';
 import 'package:pulse/theme/my_app_theme.dart';
 
@@ -54,6 +55,7 @@ class _MainShellState extends State<MainShell> {
         selectedIndex: _currentIndex,
         onDestinationSelected: (index) {
           setState(() => _currentIndex = index);
+          CapsuleNotifier.instance.notifyChanged();
         },
         backgroundColor: MyAppTheme.surfaceColor,
         indicatorColor: MyAppTheme.primaryColor.withValues(alpha: 0.2),

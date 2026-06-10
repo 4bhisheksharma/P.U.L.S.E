@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:pulse/models/models.dart';
 import 'package:pulse/services/capsule_database.dart';
+import 'package:pulse/services/capsule_notifier.dart';
 import 'package:pulse/services/notification_service.dart';
 import 'package:pulse/services/settings_service.dart';
 import 'package:pulse/theme/my_app_theme.dart';
@@ -34,22 +35,29 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     _sortOption = CapsuleSortOption.fromName(SettingsService.sortOption);
     _emotionFilter = EmotionTag.fromString(SettingsService.emotionFilter);
-    _loadCapsules();
+    CapsuleNotifier.instance.revision.addListener(_onCapsulesChanged);
+    _loadCapsules(showLoader: true);
   }
 
   bool get _hasActiveFilters =>
       _emotionFilter != null ||
       _sortOption != CapsuleSortOption.soonestUnlock;
 
-  Future<void> _loadCapsules() async {
-    setState(() => _isLoading = true);
+  void _onCapsulesChanged() {
+    if (mounted) _loadCapsules();
+  }
+
+  Future<void> _loadCapsules({bool showLoader = false}) async {
+    if (showLoader) {
+      setState(() => _isLoading = true);
+      await Future<void>.delayed(Duration.zero);
+    }
 
     final allCapsules = CapsuleDatabase.getAllCapsules();
     _allCapsules = allCapsules.where((c) => !c.hasBeenOpened).toList();
-
     _applyFilters();
 
-    setState(() => _isLoading = false);
+    if (mounted) setState(() => _isLoading = false);
   }
 
   void _applyFilters() {
@@ -94,6 +102,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   void dispose() {
+    CapsuleNotifier.instance.revision.removeListener(_onCapsulesChanged);
     _searchController.dispose();
     super.dispose();
   }
@@ -390,11 +399,13 @@ class _HomeScreenState extends State<HomeScreen> {
         return Padding(
           padding: const EdgeInsets.only(bottom: 12),
           child: CapsuleCard(
+            key: ValueKey(capsule.id),
             capsule: capsule,
             onTap: () => _handlePlay(capsule),
             onShare: () => _handleShare(capsule),
             onRename: () => _handleRename(capsule),
             onDelete: () => _handleDelete(capsule),
+            onBecameUnlockable: _loadCapsules,
           ),
         );
       },

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:pulse/models/models.dart';
 import 'package:pulse/services/capsule_database.dart';
+import 'package:pulse/services/capsule_notifier.dart';
 import 'package:pulse/services/notification_service.dart';
 import 'package:pulse/theme/my_app_theme.dart';
 import 'package:pulse/utils/capsule_actions.dart';
@@ -26,22 +27,46 @@ class _PlayedCapsulesScreenState extends State<PlayedCapsulesScreen> {
   @override
   void initState() {
     super.initState();
-    _loadCapsules();
+    CapsuleNotifier.instance.revision.addListener(_onCapsulesChanged);
+    _loadCapsules(showLoader: true);
   }
 
-  Future<void> _loadCapsules() async {
-    setState(() => _isLoading = true);
+  void _onCapsulesChanged() {
+    if (mounted) _loadCapsules();
+  }
+
+  Future<void> _loadCapsules({bool showLoader = false}) async {
+    if (showLoader) {
+      setState(() => _isLoading = true);
+      await Future<void>.delayed(Duration.zero);
+    }
 
     final allCapsules = CapsuleDatabase.getAllCapsules();
     _capsules = allCapsules.where((c) => c.hasBeenOpened).toList();
     _capsules.sort((a, b) => b.unlockDate.compareTo(a.unlockDate));
-    _filteredCapsules = _capsules;
+    _applySearchFilter();
 
-    setState(() => _isLoading = false);
+    if (mounted) setState(() => _isLoading = false);
+  }
+
+  void _applySearchFilter() {
+    final query = _searchController.text.trim().toLowerCase();
+    if (query.isEmpty) {
+      _filteredCapsules = _capsules;
+      return;
+    }
+
+    _filteredCapsules = _capsules.where((capsule) {
+      final titleMatch = capsule.title.toLowerCase().contains(query);
+      final descMatch =
+          capsule.description?.toLowerCase().contains(query) ?? false;
+      return titleMatch || descMatch;
+    }).toList();
   }
 
   @override
   void dispose() {
+    CapsuleNotifier.instance.revision.removeListener(_onCapsulesChanged);
     _searchController.dispose();
     super.dispose();
   }
@@ -92,23 +117,7 @@ class _PlayedCapsulesScreenState extends State<PlayedCapsulesScreen> {
   }
 
   void _handleSearch(String query) {
-    setState(() {
-      if (query.isEmpty) {
-        _filteredCapsules = _capsules;
-      } else {
-        _filteredCapsules = _capsules.where((capsule) {
-          final titleMatch = capsule.title.toLowerCase().contains(
-            query.toLowerCase(),
-          );
-          final descMatch =
-              capsule.description?.toLowerCase().contains(
-                query.toLowerCase(),
-              ) ??
-              false;
-          return titleMatch || descMatch;
-        }).toList();
-      }
-    });
+    setState(_applySearchFilter);
   }
 
   Widget _buildCapsulesList() {

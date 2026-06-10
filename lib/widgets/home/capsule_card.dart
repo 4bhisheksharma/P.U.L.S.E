@@ -1,13 +1,17 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:pulse/models/models.dart';
 import 'package:pulse/theme/my_app_theme.dart';
+import 'package:pulse/widgets/common/live_countdown_timer.dart';
 
-class CapsuleCard extends StatelessWidget {
+class CapsuleCard extends StatefulWidget {
   final VoiceCapsule capsule;
   final VoidCallback? onTap;
   final VoidCallback? onShare;
   final VoidCallback? onRename;
   final VoidCallback? onDelete;
+  final VoidCallback? onBecameUnlockable;
 
   const CapsuleCard({
     super.key,
@@ -16,7 +20,62 @@ class CapsuleCard extends StatelessWidget {
     this.onShare,
     this.onRename,
     this.onDelete,
+    this.onBecameUnlockable,
   });
+
+  @override
+  State<CapsuleCard> createState() => _CapsuleCardState();
+}
+
+class _CapsuleCardState extends State<CapsuleCard> {
+  Timer? _timer;
+  bool _wasLocked = true;
+
+  VoiceCapsule get capsule => widget.capsule;
+
+  @override
+  void initState() {
+    super.initState();
+    _wasLocked = capsule.isLocked;
+    _startTimerIfNeeded();
+  }
+
+  @override
+  void didUpdateWidget(CapsuleCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.capsule.id != capsule.id ||
+        oldWidget.capsule.unlockDate != capsule.unlockDate ||
+        oldWidget.capsule.hasBeenOpened != capsule.hasBeenOpened) {
+      _wasLocked = capsule.isLocked;
+      _startTimerIfNeeded();
+    }
+  }
+
+  void _startTimerIfNeeded() {
+    _timer?.cancel();
+    if (capsule.hasBeenOpened || !capsule.isLocked) return;
+
+    _timer = Timer.periodic(const Duration(seconds: 1), (_) => _onTick());
+  }
+
+  void _onTick() {
+    if (!mounted) return;
+
+    final isLocked = capsule.isLocked;
+    setState(() {});
+
+    if (_wasLocked && !isLocked) {
+      widget.onBecameUnlockable?.call();
+      _timer?.cancel();
+    }
+    _wasLocked = isLocked;
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -28,7 +87,7 @@ class CapsuleCard extends StatelessWidget {
       color: theme.cardColor,
       borderRadius: BorderRadius.circular(24),
       child: InkWell(
-        onTap: onTap,
+        onTap: widget.onTap,
         borderRadius: BorderRadius.circular(24),
         child: Column(
           children: [
@@ -150,6 +209,8 @@ class CapsuleCard extends StatelessWidget {
   }
 
   Widget _buildProgressBar(ThemeData theme) {
+    final progress = capsule.unlockProgress;
+
     return Column(
       children: [
         Padding(
@@ -157,16 +218,16 @@ class CapsuleCard extends StatelessWidget {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                capsule.timeRemainingFormatted,
-                style: theme.textTheme.bodySmall?.copyWith(
+              LiveCountdownTimer(
+                capsule: capsule,
+                textStyle: theme.textTheme.bodySmall?.copyWith(
                   color: theme.colorScheme.primary,
                   fontWeight: FontWeight.w500,
                   fontSize: 11,
                 ),
               ),
               Text(
-                '${(capsule.unlockProgress * 100).toStringAsFixed(0)}%',
+                '${(progress * 100).toStringAsFixed(0)}%',
                 style: theme.textTheme.bodySmall?.copyWith(
                   color: theme.colorScheme.primary,
                   fontWeight: FontWeight.w600,
@@ -183,7 +244,7 @@ class CapsuleCard extends StatelessWidget {
             bottomRight: Radius.circular(24),
           ),
           child: LinearProgressIndicator(
-            value: capsule.unlockProgress,
+            value: progress,
             minHeight: 4,
             backgroundColor: theme.colorScheme.primary.withValues(alpha: 0.1),
             valueColor: AlwaysStoppedAnimation<Color>(
@@ -206,11 +267,11 @@ class CapsuleCard extends StatelessWidget {
       onSelected: (value) {
         switch (value) {
           case 'share':
-            onShare?.call();
+            widget.onShare?.call();
           case 'rename':
-            onRename?.call();
+            widget.onRename?.call();
           case 'delete':
-            onDelete?.call();
+            widget.onDelete?.call();
         }
       },
       itemBuilder: (context) => [

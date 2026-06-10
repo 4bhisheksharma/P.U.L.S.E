@@ -1,5 +1,6 @@
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:pulse/models/models.dart';
+import 'package:pulse/services/capsule_notifier.dart';
 
 /// Service for managing voice capsules in Hive database
 class CapsuleDatabase {
@@ -44,21 +45,25 @@ class CapsuleDatabase {
   /// Add a new capsule
   static Future<void> addCapsule(VoiceCapsule capsule) async {
     await box.put(capsule.id, capsule);
+    CapsuleNotifier.instance.notifyChanged();
   }
 
   /// Update an existing capsule
   static Future<void> updateCapsule(VoiceCapsule capsule) async {
     await box.put(capsule.id, capsule);
+    CapsuleNotifier.instance.notifyChanged();
   }
 
   /// Delete a capsule
   static Future<void> deleteCapsule(String id) async {
     await box.delete(id);
+    CapsuleNotifier.instance.notifyChanged();
   }
 
   /// Delete all capsules
   static Future<void> deleteAllCapsules() async {
     await box.clear();
+    CapsuleNotifier.instance.notifyChanged();
   }
 
   /// Get locked capsules

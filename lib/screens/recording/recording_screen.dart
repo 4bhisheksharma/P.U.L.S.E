@@ -24,6 +24,7 @@ class _RecordingScreenState extends State<RecordingScreen> {
   bool _isRecording = false;
   bool _isPaused = false;
   bool _hasRecording = false;
+  bool _isSaving = false;
   int _recordDuration = 0;
   Timer? _timer;
   String? _audioPath;
@@ -183,6 +184,8 @@ class _RecordingScreenState extends State<RecordingScreen> {
       return;
     }
 
+    setState(() => _isSaving = true);
+
     try {
       final capsule = VoiceCapsule(
         id: const Uuid().v4(),
@@ -208,6 +211,8 @@ class _RecordingScreenState extends State<RecordingScreen> {
       }
     } catch (e) {
       _showError('Failed to save capsule: $e');
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
     }
   }
 
@@ -285,11 +290,23 @@ class _RecordingScreenState extends State<RecordingScreen> {
         actions: [
           if (_hasRecording && !_isRecording)
             TextButton(
-              onPressed: _saveCapsule,
-              child: const Text(
-                'SAVE',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-              ),
+              onPressed: _isSaving ? null : _saveCapsule,
+              child: _isSaving
+                  ? SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: theme.colorScheme.primary,
+                      ),
+                    )
+                  : const Text(
+                      'SAVE',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
             ),
         ],
       ),

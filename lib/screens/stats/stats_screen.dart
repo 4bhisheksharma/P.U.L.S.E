@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:pulse/models/models.dart';
 import 'package:pulse/services/capsule_database.dart';
+import 'package:pulse/services/capsule_notifier.dart';
 import 'package:pulse/theme/my_app_theme.dart';
 import 'package:pulse/widgets/common/empty_state.dart';
 
@@ -13,6 +14,22 @@ class StatsScreen extends StatefulWidget {
 }
 
 class _StatsScreenState extends State<StatsScreen> {
+  @override
+  void initState() {
+    super.initState();
+    CapsuleNotifier.instance.revision.addListener(_onCapsulesChanged);
+  }
+
+  @override
+  void dispose() {
+    CapsuleNotifier.instance.revision.removeListener(_onCapsulesChanged);
+    super.dispose();
+  }
+
+  void _onCapsulesChanged() {
+    if (mounted) setState(() {});
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);

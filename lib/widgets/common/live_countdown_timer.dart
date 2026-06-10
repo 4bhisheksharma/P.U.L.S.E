@@ -1,53 +1,17 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:pulse/models/models.dart';
 
-/// A widget that displays a live countdown timer for locked capsules
-/// Updates every second to show real-time progress
-class LiveCountdownTimer extends StatefulWidget {
+/// Displays a countdown for locked capsules. Rebuild the parent every second
+/// (e.g. from [CapsuleCard]) to keep the label live.
+class LiveCountdownTimer extends StatelessWidget {
   final VoiceCapsule capsule;
   final TextStyle? textStyle;
 
   const LiveCountdownTimer({super.key, required this.capsule, this.textStyle});
 
-  @override
-  State<LiveCountdownTimer> createState() => _LiveCountdownTimerState();
-}
-
-class _LiveCountdownTimerState extends State<LiveCountdownTimer> {
-  Timer? _timer;
-  String _timeRemaining = '';
-
-  @override
-  void initState() {
-    super.initState();
-    _updateTimeRemaining();
-
-    if (widget.capsule.isLocked) {
-      _timer = Timer.periodic(const Duration(seconds: 1), (_) {
-        if (mounted) {
-          _updateTimeRemaining();
-        }
-      });
-    }
-  }
-
-  @override
-  void dispose() {
-    _timer?.cancel();
-    super.dispose();
-  }
-
-  void _updateTimeRemaining() {
-    setState(() {
-      _timeRemaining = _formatTimeRemaining();
-    });
-  }
-
-  String _formatTimeRemaining() {
+  static String format(VoiceCapsule capsule) {
     final now = DateTime.now();
-    final unlockDate = widget.capsule.unlockDate;
-    final difference = unlockDate.difference(now);
+    final difference = capsule.unlockDate.difference(now);
 
     if (difference.isNegative) {
       return 'Ready to unlock!';
@@ -67,14 +31,15 @@ class _LiveCountdownTimerState extends State<LiveCountdownTimer> {
       final days = difference.inDays;
       final hours = difference.inHours % 24;
       return '${days}d ${hours}h remaining';
-    } else {
-      return widget.capsule.timeRemainingFormatted;
     }
+
+    return capsule.timeRemainingFormatted;
   }
 
   @override
   Widget build(BuildContext context) {
-    final isReady = _timeRemaining == 'Ready to unlock!';
+    final timeRemaining = format(capsule);
+    final isReady = timeRemaining == 'Ready to unlock!';
 
     return Row(
       mainAxisSize: MainAxisSize.min,
@@ -83,16 +48,16 @@ class _LiveCountdownTimerState extends State<LiveCountdownTimer> {
           Icon(
             Icons.lock_open_outlined,
             size: 14,
-            color: widget.textStyle?.color ?? Colors.green.shade300,
+            color: textStyle?.color ?? Colors.green.shade300,
           ),
           const SizedBox(width: 4),
         ],
         Text(
-          _timeRemaining,
+          timeRemaining,
           style:
-              widget.textStyle ??
+              textStyle ??
               Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: widget.capsule.isLocked
+                color: capsule.isLocked
                     ? Colors.orange.shade300
                     : Colors.green.shade300,
                 fontWeight: FontWeight.w600,
