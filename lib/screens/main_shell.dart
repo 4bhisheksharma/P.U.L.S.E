@@ -3,6 +3,7 @@ import 'package:pulse/screens/home_screen.dart';
 import 'package:pulse/screens/played/played_capsules_screen.dart';
 import 'package:pulse/screens/stats/stats_screen.dart';
 import 'package:pulse/screens/profile/profile_screen.dart';
+import 'package:pulse/services/app_update_service.dart';
 import 'package:pulse/theme/my_app_theme.dart';
 
 class MainShell extends StatefulWidget {
@@ -25,6 +26,14 @@ class _MainShellState extends State<MainShell> {
         3 => const ProfileScreen(),
         _ => const SizedBox.shrink(),
       };
+    });
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) AppUpdateService.instance.checkForUpdate(context);
     });
   }
 
