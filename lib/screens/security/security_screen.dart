@@ -102,20 +102,23 @@ class _SecurityScreenState extends State<SecurityScreen> {
                 color: theme.colorScheme.primary.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(20),
               ),
-              child: Row(
+              child: Column(
                 children: [
-                  Icon(
-                    Icons.shield_outlined,
-                    color: theme.colorScheme.primary,
-                    size: 28,
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Text(
-                      'Lock P.U.L.S.E with a PIN or biometrics so only you can '
-                      'open your private capsules.',
-                      style: theme.textTheme.bodyMedium,
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: Image.asset(
+                      'assets/images/icon.png',
+                      width: 56,
+                      height: 56,
+                      fit: BoxFit.cover,
                     ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Lock P.U.L.S.E with a PIN or biometrics so only you can '
+                    'open your private capsules.',
+                    style: theme.textTheme.bodyMedium,
+                    textAlign: TextAlign.center,
                   ),
                 ],
               ),
