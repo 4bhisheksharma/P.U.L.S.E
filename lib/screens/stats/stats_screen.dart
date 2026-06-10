@@ -47,9 +47,10 @@ class _StatsScreenState extends State<StatsScreen> {
             ? RefreshIndicator(
                 onRefresh: _refresh,
                 child: ListView(
-                  children: const [
+                  children: [
                     EmptyState(
                       icon: Icons.insights_rounded,
+                      lottieAsset: EmptyState.emptyLottie,
                       title: 'No insights yet',
                       subtitle:
                           'Record your first capsule to start seeing stats '

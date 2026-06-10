@@ -367,6 +367,9 @@ class _HomeScreenState extends State<HomeScreen> {
                 : isSearching
                 ? Icons.search_off_rounded
                 : Icons.inbox_rounded,
+            lottieAsset: hasNoCapsules && CapsuleDatabase.isEmpty
+                ? EmptyState.emptyLottie
+                : null,
             title: hasNoCapsules
                 ? 'No capsules yet'
                 : isSearching

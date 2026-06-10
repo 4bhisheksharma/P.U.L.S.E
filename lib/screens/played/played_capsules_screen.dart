@@ -132,6 +132,7 @@ class _PlayedCapsulesScreenState extends State<PlayedCapsulesScreen> {
             icon: hasNoCapsules
                 ? Icons.history_rounded
                 : Icons.search_off_rounded,
+            lottieAsset: CapsuleDatabase.isEmpty ? EmptyState.emptyLottie : null,
             title: hasNoCapsules
                 ? 'No played capsules yet'
                 : 'No capsules found',

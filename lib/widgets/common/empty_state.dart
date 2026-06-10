@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:lottie/lottie.dart';
 
 class EmptyState extends StatelessWidget {
+  static const emptyLottie = 'assets/lottie/empty.json';
+
   final IconData icon;
   final String title;
   final String subtitle;
+  final String? lottieAsset;
   final String? actionLabel;
   final IconData? actionIcon;
   final VoidCallback? onAction;
@@ -14,6 +18,7 @@ class EmptyState extends StatelessWidget {
     required this.icon,
     required this.title,
     required this.subtitle,
+    this.lottieAsset,
     this.actionLabel,
     this.actionIcon,
     this.onAction,
@@ -29,23 +34,35 @@ class EmptyState extends StatelessWidget {
       child: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            Container(
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                color: theme.colorScheme.primary.withValues(alpha: 0.1),
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: theme.colorScheme.primary.withValues(alpha: 0.2),
-                  width: 2,
+            if (lottieAsset != null)
+              SizedBox(
+                width: 230,
+                height: 230,
+                child: Lottie.asset(
+                  lottieAsset!,
+                  fit: BoxFit.contain,
+                  repeat: true,
+                ),
+              )
+            else
+              Container(
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.primary.withValues(alpha: 0.1),
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: theme.colorScheme.primary.withValues(alpha: 0.2),
+                    width: 2,
+                  ),
+                ),
+                child: Icon(
+                  icon,
+                  size: 56,
+                  color: theme.colorScheme.primary.withValues(alpha: 0.59),
                 ),
               ),
-              child: Icon(
-                icon,
-                size: 56,
-                color: theme.colorScheme.primary.withValues(alpha: 0.59),
-              ),
-            ),
             const SizedBox(height: 24),
             Text(
               title,
@@ -81,10 +98,7 @@ class EmptyState extends StatelessWidget {
               ),
             if (footerText != null) ...[
               const SizedBox(height: 8),
-              Text(
-                footerText!,
-                style: theme.textTheme.bodySmall,
-              ),
+              Text(footerText!, style: theme.textTheme.bodySmall),
             ],
           ],
         ),
