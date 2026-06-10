@@ -12,6 +12,9 @@ class AppLockService {
   static bool get isLockEnabled =>
       SettingsService.appLockEnabled && SettingsService.hasPin;
 
+  /// True while the lock overlay is shown and the app is waiting for unlock.
+  static bool isSessionLocked = false;
+
   static Future<bool> isBiometricAvailable() async {
     try {
       final supported = await _auth.isDeviceSupported();

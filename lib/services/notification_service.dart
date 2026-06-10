@@ -1,9 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import 'package:timezone/data/latest_all.dart' as tz;
+import 'package:timezone/data/latest.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 import 'package:pulse/models/models.dart';
 import 'package:pulse/app_view.dart';
+import 'package:pulse/services/app_lock_service.dart';
 import 'package:pulse/services/capsule_database.dart';
 import 'package:pulse/screens/player/audio_player_screen.dart';
 
@@ -24,6 +27,24 @@ class NotificationService {
   bool _canScheduleExactAlarms = true;
   String? _pendingCapsuleId;
   bool _isNavigating = false;
+  Future<void>? _startupFuture;
+
+  /// Completes notification init and cold-start tap capture. Safe to call
+  /// multiple times; runs once.
+  Future<void> ensureStartupComplete() {
+    return _startupFuture ??= _completeStartup();
+  }
+
+  Future<void> _completeStartup() async {
+    await initialize();
+    await handleAppLaunchNotification();
+    unawaited(_runDeferredMaintenance());
+  }
+
+  Future<void> _runDeferredMaintenance() async {
+    await requestPermissions();
+    await rescheduleAllCapsuleNotificationsIfNeeded();
+  }
 
   /// Initialize notification service
   Future<void> initialize() async {
@@ -70,9 +91,13 @@ class NotificationService {
     }
   }
 
+  bool _isBlockedByAppLock() =>
+      AppLockService.isLockEnabled && AppLockService.isSessionLocked;
+
   /// Call after the first frame when MaterialApp/navigator is ready
   void processPendingNotificationTap() {
     if (_pendingCapsuleId == null) return;
+    if (_isBlockedByAppLock()) return;
     _navigateToCapsule(_pendingCapsuleId!);
   }
 
@@ -124,6 +149,8 @@ class NotificationService {
   void _queueCapsuleNavigation(String capsuleId) {
     _pendingCapsuleId = capsuleId;
 
+    if (_isBlockedByAppLock()) return;
+
     final navigator = navigatorKey.currentState;
     if (navigator == null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -137,6 +164,11 @@ class NotificationService {
 
   Future<void> _navigateToCapsule(String capsuleId) async {
     if (_isNavigating) return;
+
+    if (_isBlockedByAppLock()) {
+      _pendingCapsuleId = capsuleId;
+      return;
+    }
 
     final navigator = navigatorKey.currentState;
     if (navigator == null) {
@@ -197,9 +229,15 @@ class NotificationService {
 
     bool? androidGranted = true;
     if (androidPlugin != null) {
-      androidGranted = await androidPlugin.requestNotificationsPermission();
-      await androidPlugin.requestExactAlarmsPermission();
+      final alreadyEnabled = await androidPlugin.areNotificationsEnabled();
+      if (alreadyEnabled != true) {
+        androidGranted = await androidPlugin.requestNotificationsPermission();
+      }
       _canScheduleExactAlarms = await _checkExactAlarmPermission();
+      if (!_canScheduleExactAlarms) {
+        await androidPlugin.requestExactAlarmsPermission();
+        _canScheduleExactAlarms = await _checkExactAlarmPermission();
+      }
     }
 
     bool? iosGranted = true;
@@ -344,5 +382,19 @@ class NotificationService {
       await scheduleCapsuleUnlockNotification(capsule);
       await scheduleUnlockReminder(capsule);
     }
+  }
+
+  /// Only reschedules when pending alarms look incomplete (avoids work every launch).
+  Future<void> rescheduleAllCapsuleNotificationsIfNeeded() async {
+    if (!_isInitialized) await initialize();
+
+    final lockedCapsules = CapsuleDatabase.getLockedCapsules();
+    if (lockedCapsules.isEmpty) return;
+
+    final pending = await getPendingNotifications();
+    final expected = lockedCapsules.length * 2;
+    if (pending.length >= expected) return;
+
+    await rescheduleAllCapsuleNotifications();
   }
 }

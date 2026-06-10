@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:pulse/screens/main_shell.dart';
 import 'package:pulse/screens/lock/lock_screen.dart';
 import 'package:pulse/services/app_lock_service.dart';
+import 'package:pulse/services/notification_service.dart';
 import 'package:pulse/theme/my_app_theme.dart';
 
 // Global navigator key for handling notifications
@@ -22,6 +23,15 @@ class _MyAppViewState extends State<MyAppView> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _locked = AppLockService.isLockEnabled;
+    AppLockService.isSessionLocked = _locked;
+  }
+
+  void _onUnlocked() {
+    setState(() => _locked = false);
+    AppLockService.isSessionLocked = false;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      NotificationService().processPendingNotificationTap();
+    });
   }
 
   @override
@@ -40,6 +50,7 @@ class _MyAppViewState extends State<MyAppView> with WidgetsBindingObserver {
       // (which itself backgrounds the app) is currently in progress.
       if (!AppLockService.authInProgress && !_locked) {
         setState(() => _locked = true);
+        AppLockService.isSessionLocked = true;
       }
     }
   }
@@ -65,7 +76,7 @@ class _MyAppViewState extends State<MyAppView> with WidgetsBindingObserver {
                   initialEntries: [
                     OverlayEntry(
                       builder: (context) => LockScreen(
-                        onUnlocked: () => setState(() => _locked = false),
+                        onUnlocked: _onUnlocked,
                       ),
                     ),
                   ],

@@ -15,18 +15,25 @@ class MainShell extends StatefulWidget {
 
 class _MainShellState extends State<MainShell> {
   int _currentIndex = 0;
+  final _pageCache = <int, Widget>{};
 
-  final _pages = const [
-    HomeScreen(),
-    PlayedCapsulesScreen(),
-    StatsScreen(),
-    ProfileScreen(),
-  ];
+  Widget _pageAt(int index) {
+    return _pageCache.putIfAbsent(index, () {
+      return switch (index) {
+        0 => const HomeScreen(),
+        1 => const PlayedCapsulesScreen(),
+        2 => const StatsScreen(),
+        3 => const ProfileScreen(),
+        _ => const SizedBox.shrink(),
+      };
+    });
+  }
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await NotificationService().ensureStartupComplete();
       NotificationService().processPendingNotificationTap();
     });
   }
@@ -36,7 +43,12 @@ class _MainShellState extends State<MainShell> {
     return Scaffold(
       body: IndexedStack(
         index: _currentIndex,
-        children: _pages,
+        children: List.generate(4, (index) {
+          if (index == _currentIndex || _pageCache.containsKey(index)) {
+            return _pageAt(index);
+          }
+          return const SizedBox.shrink();
+        }),
       ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _currentIndex,

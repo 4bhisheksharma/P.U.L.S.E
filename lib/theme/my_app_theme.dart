@@ -83,7 +83,9 @@ class MyAppTheme {
     );
   }
 
-  static ThemeData get darkTheme {
+  static final ThemeData darkTheme = _buildDarkTheme();
+
+  static ThemeData _buildDarkTheme() {
     final textTheme = _buildTextTheme();
 
     return ThemeData(
