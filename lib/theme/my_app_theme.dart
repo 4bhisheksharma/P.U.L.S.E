@@ -85,6 +85,11 @@ class MyAppTheme {
 
   static final ThemeData darkTheme = _buildDarkTheme();
 
+  /// Preload Inter so the main UI does not stall on first paint.
+  static Future<void> preloadFonts() async {
+    await GoogleFonts.pendingFonts([GoogleFonts.inter()]);
+  }
+
   static ThemeData _buildDarkTheme() {
     final textTheme = _buildTextTheme();
 

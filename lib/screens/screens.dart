@@ -1,3 +1,4 @@
+export 'splash/splash_screen.dart';
 export 'main_shell.dart';
 export 'home_screen.dart';
 export 'recording/recording_screen.dart';

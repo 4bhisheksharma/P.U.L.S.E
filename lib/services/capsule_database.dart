@@ -7,17 +7,24 @@ class CapsuleDatabase {
   static const String _boxName = 'capsules';
   static Box<VoiceCapsule>? _box;
 
-  /// Initialize Hive and open the capsules box
-  static Future<void> init() async {
+  /// Initializes Hive and registers adapters (call once before opening boxes).
+  static Future<void> prepareHive() async {
     await Hive.initFlutter();
-    
-    // Register adapter if not already registered
+
     if (!Hive.isAdapterRegistered(0)) {
       Hive.registerAdapter(VoiceCapsuleAdapter());
     }
-    
-    // Open the box
+  }
+
+  /// Opens the capsules box. Requires [prepareHive] first.
+  static Future<void> open() async {
     _box = await Hive.openBox<VoiceCapsule>(_boxName);
+  }
+
+  /// Initialize Hive and open the capsules box
+  static Future<void> init() async {
+    await prepareHive();
+    await open();
   }
 
   /// Get the capsules box

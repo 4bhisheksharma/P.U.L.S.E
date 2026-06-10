@@ -19,8 +19,13 @@ class SettingsService {
 
   static Box? _box;
 
-  static Future<void> init() async {
+  /// Opens the settings box. Requires [CapsuleDatabase.prepareHive] first.
+  static Future<void> open() async {
     _box = await Hive.openBox(_boxName);
+  }
+
+  static Future<void> init() async {
+    await open();
   }
 
   static Box get _settings {

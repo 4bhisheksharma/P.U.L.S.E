@@ -28,6 +28,7 @@ dependencies:
   flutter_launcher_icons: "^0.14.4"
   local_auth: ^3.0.1
   crypto: ^3.0.7
+  lottie: ^3.3.3
 
 flutter_launcher_icons:
   android: "launcher_icon"
@@ -49,6 +50,7 @@ flutter:
 
   assets:
     - assets/images/
+    - assets/lottie/
   #   - images/a_dot_ham.jpeg
 
   # fonts:

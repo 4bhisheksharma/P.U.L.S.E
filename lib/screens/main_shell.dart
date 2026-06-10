@@ -3,8 +3,6 @@ import 'package:pulse/screens/home_screen.dart';
 import 'package:pulse/screens/played/played_capsules_screen.dart';
 import 'package:pulse/screens/stats/stats_screen.dart';
 import 'package:pulse/screens/profile/profile_screen.dart';
-import 'package:pulse/services/capsule_notifier.dart';
-import 'package:pulse/services/notification_service.dart';
 import 'package:pulse/theme/my_app_theme.dart';
 
 class MainShell extends StatefulWidget {
@@ -31,15 +29,6 @@ class _MainShellState extends State<MainShell> {
   }
 
   @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      await NotificationService().ensureStartupComplete();
-      NotificationService().processPendingNotificationTap();
-    });
-  }
-
-  @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: IndexedStack(
@@ -53,10 +42,7 @@ class _MainShellState extends State<MainShell> {
       ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _currentIndex,
-        onDestinationSelected: (index) {
-          setState(() => _currentIndex = index);
-          CapsuleNotifier.instance.notifyChanged();
-        },
+        onDestinationSelected: (index) => setState(() => _currentIndex = index),
         backgroundColor: MyAppTheme.surfaceColor,
         indicatorColor: MyAppTheme.primaryColor.withValues(alpha: 0.2),
         destinations: const [

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:pulse/screens/main_shell.dart';
+import 'package:pulse/screens/splash/splash_screen.dart';
 import 'package:pulse/screens/lock/lock_screen.dart';
 import 'package:pulse/services/app_lock_service.dart';
 import 'package:pulse/services/notification_service.dart';
@@ -17,13 +18,23 @@ class MyAppView extends StatefulWidget {
 
 class _MyAppViewState extends State<MyAppView> with WidgetsBindingObserver {
   bool _locked = false;
+  bool _bootstrapped = false;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _locked = AppLockService.isLockEnabled;
-    AppLockService.isSessionLocked = _locked;
+  }
+
+  void _onBootstrapComplete() {
+    setState(() {
+      _bootstrapped = true;
+      _locked = AppLockService.isLockEnabled;
+      AppLockService.isSessionLocked = _locked;
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      NotificationService().processPendingNotificationTap();
+    });
   }
 
   void _onUnlocked() {
@@ -85,7 +96,9 @@ class _MyAppViewState extends State<MyAppView> with WidgetsBindingObserver {
           ],
         );
       },
-      home: const MainShell(),
+      home: _bootstrapped
+          ? const MainShell()
+          : SplashScreen(onComplete: _onBootstrapComplete),
     );
   }
 }
