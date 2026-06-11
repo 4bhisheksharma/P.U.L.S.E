@@ -45,7 +45,9 @@
     <true/>
     <key>UIApplicationSupportsIndirectInputEvents</key>
     <true/>
-    <key>NSUserNotificationsUsageDescription</key>
-    <string>PULSE needs notification access to alert you when your time capsules are ready to be opened.</string>
+    <key>NSMicrophoneUsageDescription</key>
+    <string>PULSE needs microphone access to record voice time capsules.</string>
+    <key>NSFaceIDUsageDescription</key>
+    <string>PULSE uses Face ID to unlock your private capsules.</string>
   </dict>
 </plist>

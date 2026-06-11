@@ -1,13 +1,17 @@
 import 'dart:async';
+import 'dart:convert';
 
+import 'package:crypto/crypto.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:timezone/data/latest.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 import 'package:pulse/models/models.dart';
 import 'package:pulse/app_view.dart';
 import 'package:pulse/services/app_lock_service.dart';
 import 'package:pulse/services/capsule_database.dart';
+import 'package:pulse/services/settings_service.dart';
 import 'package:pulse/screens/player/audio_player_screen.dart';
 
 class NotificationService {
@@ -27,6 +31,8 @@ class NotificationService {
   bool _canScheduleExactAlarms = true;
   String? _pendingCapsuleId;
   bool _isNavigating = false;
+  bool _acceptNotificationTaps = false;
+  bool _appReadyHandled = false;
   Future<void>? _startupFuture;
 
   /// Completes notification init and cold-start tap capture. Safe to call
@@ -37,7 +43,6 @@ class NotificationService {
 
   Future<void> _completeStartup() async {
     await initialize();
-    await handleAppLaunchNotification();
     unawaited(_runDeferredMaintenance());
   }
 
@@ -46,11 +51,30 @@ class NotificationService {
     await rescheduleAllCapsuleNotificationsIfNeeded();
   }
 
+  static int _notificationId(String capsuleId, {int slot = 0}) {
+    final digest = sha256.convert(
+      utf8.encode('pulse::notify::$capsuleId::$slot'),
+    );
+    final bytes = digest.bytes;
+    return (bytes[0] << 24 | bytes[1] << 16 | bytes[2] << 8 | bytes[3]) &
+        0x7FFFFFFF;
+  }
+
+  Future<void> _configureLocalTimeZone() async {
+    try {
+      final timeZoneName = await FlutterTimezone.getLocalTimezone();
+      tz.setLocalLocation(tz.getLocation(timeZoneName));
+    } catch (_) {
+      // Keep default location if platform lookup fails.
+    }
+  }
+
   /// Initialize notification service
   Future<void> initialize() async {
     if (_isInitialized) return;
 
     tz.initializeTimeZones();
+    await _configureLocalTimeZone();
 
     const androidSettings = AndroidInitializationSettings(
       '@drawable/ic_notification',
@@ -78,17 +102,29 @@ class NotificationService {
     _isInitialized = true;
   }
 
-  /// Check if app was launched from a notification tap (cold start)
-  Future<void> handleAppLaunchNotification() async {
-    final launchDetails = await _notifications.getNotificationAppLaunchDetails();
-    final response = launchDetails?.notificationResponse;
-    final payload = response?.payload;
+  /// Call once when the main UI is ready. Shows home by default; only opens a
+  /// capsule on a genuine cold-start notification tap (not hot reload/restart).
+  Future<void> onAppReady() async {
+    _acceptNotificationTaps = true;
+    _pendingCapsuleId = null;
 
-    if (launchDetails?.didNotificationLaunchApp == true &&
-        payload != null &&
-        payload.isNotEmpty) {
-      _queueCapsuleNavigation(payload);
+    if (_appReadyHandled) return;
+    _appReadyHandled = true;
+
+    final launchDetails =
+        await _notifications.getNotificationAppLaunchDetails();
+    if (launchDetails?.didNotificationLaunchApp != true) return;
+
+    final payload = launchDetails?.notificationResponse?.payload;
+    if (payload == null || payload.isEmpty) return;
+
+    // Skip stale launch details replayed after hot reload/restart.
+    if (SettingsService.consumedColdStartNotificationPayload == payload) {
+      return;
     }
+
+    await SettingsService.setConsumedColdStartNotificationPayload(payload);
+    _queueCapsuleNavigation(payload);
   }
 
   bool _isBlockedByAppLock() =>
@@ -138,12 +174,15 @@ class NotificationService {
         : AndroidScheduleMode.inexactAllowWhileIdle;
   }
 
-  /// Handle notification tap while app is running or in background
+  /// Handle notification tap while app is running or in background.
   void _onNotificationTap(NotificationResponse response) {
+    if (!_acceptNotificationTaps) return;
+
     final payload = response.payload;
-    if (payload != null && payload.isNotEmpty) {
-      _queueCapsuleNavigation(payload);
-    }
+    if (payload == null || payload.isEmpty) return;
+
+    unawaited(SettingsService.clearConsumedColdStartNotificationPayload());
+    _queueCapsuleNavigation(payload);
   }
 
   void _queueCapsuleNavigation(String capsuleId) {
@@ -187,15 +226,9 @@ class NotificationService {
       }
 
       if (capsule.isLocked) {
-        debugPrint('Notification tap: capsule still locked ($capsuleId)');
         _pendingCapsuleId = null;
+        _showLockedCapsuleMessage(capsule);
         return;
-      }
-
-      var capsuleToPlay = capsule;
-      if (!capsule.hasBeenOpened) {
-        capsuleToPlay = capsule.copyWith(hasBeenOpened: true);
-        await CapsuleDatabase.updateCapsule(capsuleToPlay);
       }
 
       _isNavigating = true;
@@ -203,7 +236,7 @@ class NotificationService {
 
       navigator.push(
         MaterialPageRoute(
-          builder: (context) => AudioPlayerScreen(capsule: capsuleToPlay),
+          builder: (context) => AudioPlayerScreen(capsule: capsule),
         ),
       ).whenComplete(() {
         _isNavigating = false;
@@ -263,7 +296,7 @@ class NotificationService {
     final scheduledDate = tz.TZDateTime.from(capsule.unlockDate, tz.local);
 
     await _notifications.zonedSchedule(
-      capsule.id.hashCode,
+      _notificationId(capsule.id),
       'Time Capsule Unlocked',
       '${capsule.title} is ready to open',
       scheduledDate,
@@ -288,7 +321,7 @@ class NotificationService {
     final scheduledDate = tz.TZDateTime.from(reminderDate, tz.local);
 
     await _notifications.zonedSchedule(
-      capsule.id.hashCode + 1,
+      _notificationId(capsule.id, slot: 1),
       'Capsule Unlocking Soon',
       '${capsule.title} unlocks tomorrow!',
       scheduledDate,
@@ -302,30 +335,26 @@ class NotificationService {
 
   /// Cancel notification for a capsule
   Future<void> cancelCapsuleNotification(String capsuleId) async {
-    await _notifications.cancel(capsuleId.hashCode);
-    await _notifications.cancel(capsuleId.hashCode + 1);
+    await _notifications.cancel(_notificationId(capsuleId));
+    await _notifications.cancel(_notificationId(capsuleId, slot: 1));
+  }
+
+  void _showLockedCapsuleMessage(VoiceCapsule capsule) {
+    final context = navigatorKey.currentContext;
+    if (context == null) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          '${capsule.title} is still locked — ${capsule.timeRemainingFormatted}',
+        ),
+      ),
+    );
   }
 
   /// Cancel all notifications
   Future<void> cancelAllNotifications() async {
     await _notifications.cancelAll();
-  }
-
-  /// Show immediate notification (for testing)
-  Future<void> showImmediateNotification({
-    required String title,
-    required String body,
-    String? payload,
-  }) async {
-    if (!_isInitialized) await initialize();
-
-    await _notifications.show(
-      DateTime.now().millisecondsSinceEpoch ~/ 1000,
-      title,
-      body,
-      notificationDetails(),
-      payload: payload,
-    );
   }
 
   /// Get notification details with custom styling

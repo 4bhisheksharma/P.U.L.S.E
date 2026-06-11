@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import 'package:pulse/models/models.dart';
+import 'package:pulse/services/capsule_database.dart';
 import 'package:pulse/theme/my_app_theme.dart';
 
 class AudioPlayerScreen extends StatefulWidget {
@@ -19,6 +20,7 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen> {
   bool _isPlaying = false;
   bool _isLoading = true;
   bool _isPrepared = false;
+  bool _markedOpened = false;
   Duration _duration = Duration.zero;
   Duration _position = Duration.zero;
   String? _errorMessage;
@@ -27,6 +29,23 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen> {
   void initState() {
     super.initState();
     _setupAudioPlayer();
+  }
+
+  Future<void> _markOpenedIfListenedEnough(Duration position) async {
+    if (_markedOpened || widget.capsule.hasBeenOpened) return;
+
+    final durationSeconds = _duration.inSeconds > 0
+        ? _duration.inSeconds
+        : widget.capsule.durationInSeconds;
+    final thresholdSeconds = durationSeconds <= 3
+        ? 1
+        : (durationSeconds * 0.25).ceil().clamp(3, 30);
+    if (position.inSeconds < thresholdSeconds) return;
+
+    _markedOpened = true;
+    await CapsuleDatabase.updateCapsule(
+      widget.capsule.copyWith(hasBeenOpened: true),
+    );
   }
 
   @override
@@ -63,6 +82,7 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen> {
       _audioPlayer.onPositionChanged.listen((position) {
         if (mounted) {
           setState(() => _position = position);
+          _markOpenedIfListenedEnough(position);
         }
       });
 
@@ -73,6 +93,7 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen> {
             _position = Duration.zero;
           });
         }
+        _markOpenedIfListenedEnough(_duration);
       });
 
       await _audioPlayer.setPlayerMode(PlayerMode.mediaPlayer);

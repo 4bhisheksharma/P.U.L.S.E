@@ -9,4 +9,5 @@ export 'stats/stats_screen.dart';
 export 'profile/profile_screen.dart';
 export 'security/security_screen.dart';
 export 'security/pin_setup_screen.dart';
+export 'security/pin_verify_screen.dart';
 export 'lock/lock_screen.dart';

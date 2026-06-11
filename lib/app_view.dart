@@ -33,7 +33,7 @@ class _MyAppViewState extends State<MyAppView> with WidgetsBindingObserver {
       AppLockService.isSessionLocked = _locked;
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      NotificationService().processPendingNotificationTap();
+      NotificationService().onAppReady();
     });
   }
 

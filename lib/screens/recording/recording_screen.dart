@@ -1,6 +1,8 @@
 import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:pulse/models/models.dart';
 import 'package:pulse/services/capsule_database.dart';
 import 'package:pulse/services/notification_service.dart';
@@ -44,7 +46,6 @@ class _RecordingScreenState extends State<RecordingScreen> {
   @override
   void initState() {
     super.initState();
-    _checkPermissions();
   }
 
   @override
@@ -84,18 +85,48 @@ class _RecordingScreenState extends State<RecordingScreen> {
     }
   }
 
-  Future<void> _checkPermissions() async {
-    if (await _audioRecorder.hasPermission()) {
-      // Permission granted
-    } else {
-      // Request permission
-      await _audioRecorder.hasPermission();
-    }
+  Future<bool> _ensureMicrophonePermission() async {
+    var status = await Permission.microphone.status;
+    if (status.isGranted) return true;
+
+    status = await Permission.microphone.request();
+    if (status.isGranted) return true;
+
+    if (!mounted) return false;
+
+    final openSettings = status.isPermanentlyDenied;
+    await showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Microphone access needed'),
+        content: Text(
+          openSettings
+              ? 'PULSE needs microphone access to record voice capsules. '
+                  'Enable it in Settings.'
+              : 'Microphone permission was denied. Allow access to record.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          if (openSettings)
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context);
+                openAppSettings();
+              },
+              child: const Text('Open Settings'),
+            ),
+        ],
+      ),
+    );
+    return false;
   }
 
   Future<void> _startRecording() async {
     try {
-      if (await _audioRecorder.hasPermission()) {
+      if (await _ensureMicrophonePermission()) {
         final directory = await getApplicationDocumentsDirectory();
         final filePath =
             '${directory.path}/recording_${DateTime.now().millisecondsSinceEpoch}.m4a';
@@ -202,12 +233,16 @@ class _RecordingScreenState extends State<RecordingScreen> {
 
       await CapsuleDatabase.addCapsule(capsule);
 
-      // Schedule notifications for unlock
-      await NotificationService().scheduleCapsuleUnlockNotification(capsule);
-      await NotificationService().scheduleUnlockReminder(capsule);
+      try {
+        await NotificationService().scheduleCapsuleUnlockNotification(capsule);
+        await NotificationService().scheduleUnlockReminder(capsule);
+      } catch (e) {
+        await CapsuleDatabase.deleteCapsule(capsule.id, deleteAudioFile: false);
+        throw Exception('Saved capsule but failed to schedule notifications');
+      }
 
       if (mounted) {
-        Navigator.pop(context, true); // Return true to indicate success
+        Navigator.pop(context, true);
       }
     } catch (e) {
       _showError('Failed to save capsule: $e');
@@ -432,13 +467,17 @@ class _RecordingScreenState extends State<RecordingScreen> {
                 // Re-record button
                 _buildControlButton(
                   icon: Icons.refresh,
-                  onPressed: () {
+                  onPressed: () async {
+                    final previousPath = _audioPath;
                     setState(() {
                       _hasRecording = false;
                       _recordDuration = 0;
                       _audioPath = null;
                       _resetWaveform();
                     });
+                    if (previousPath != null) {
+                      await CapsuleDatabase.deleteAudioFileAt(previousPath);
+                    }
                   },
                   color: Colors.orange,
                 ),

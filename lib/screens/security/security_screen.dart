@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:pulse/screens/security/pin_setup_screen.dart';
+import 'package:pulse/screens/security/pin_verify_screen.dart';
 import 'package:pulse/services/app_lock_service.dart';
 import 'package:pulse/services/settings_service.dart';
 import 'package:pulse/theme/my_app_theme.dart';
@@ -33,6 +34,26 @@ class _SecurityScreenState extends State<SecurityScreen> {
     );
   }
 
+  Future<bool> _verifyCurrentPinOrBiometric(String reason) async {
+    if (SettingsService.biometricEnabled &&
+        await AppLockService.isBiometricAvailable()) {
+      return AppLockService.authenticateBiometric(reason);
+    }
+
+    if (!mounted) return false;
+
+    final verified = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => PinVerifyScreen(
+          title: 'Verify PIN',
+          subtitle: reason,
+        ),
+      ),
+    );
+    return verified == true;
+  }
+
   Future<void> _toggleAppLock(bool enable) async {
     if (enable) {
       if (!SettingsService.hasPin) {
@@ -42,12 +63,21 @@ class _SecurityScreenState extends State<SecurityScreen> {
       }
       await SettingsService.setAppLockEnabled(true);
     } else {
+      final verified = await _verifyCurrentPinOrBiometric(
+        'Enter your PIN to turn off app lock',
+      );
+      if (!verified) return;
       await SettingsService.clearLock();
     }
     if (mounted) setState(() {});
   }
 
   Future<void> _changePin() async {
+    final verified = await _verifyCurrentPinOrBiometric(
+      'Enter your current PIN to change it',
+    );
+    if (!verified) return;
+
     final pin = await _setupPin();
     if (pin == null) return;
     await SettingsService.setPin(pin);

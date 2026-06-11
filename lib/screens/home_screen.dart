@@ -426,17 +426,11 @@ class _HomeScreenState extends State<HomeScreen> {
       return;
     }
 
-    var capsuleToPlay = capsule;
-    if (!capsule.hasBeenOpened) {
-      capsuleToPlay = capsule.copyWith(hasBeenOpened: true);
-      await CapsuleDatabase.updateCapsule(capsuleToPlay);
-    }
-
     if (mounted) {
       await Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (context) => AudioPlayerScreen(capsule: capsuleToPlay),
+          builder: (context) => AudioPlayerScreen(capsule: capsule),
         ),
       );
       _loadCapsules();

@@ -13,6 +13,8 @@ class SettingsService {
   static const String _kBiometricEnabled = 'biometricEnabled';
   static const String _kSortOption = 'sortOption';
   static const String _kEmotionFilter = 'emotionFilter';
+  static const String _kConsumedColdStartNotificationPayload =
+      'consumedColdStartNotificationPayload';
 
   // A static salt for hashing the PIN. Local privacy only (not server auth).
   static const String _salt = 'pulse::v1::lock';
@@ -94,5 +96,20 @@ class SettingsService {
     } else {
       await _settings.put(_kEmotionFilter, value);
     }
+  }
+
+  // ---- Notification launch deduplication --------------------------------
+
+  static String? get consumedColdStartNotificationPayload =>
+      _settings.get(_kConsumedColdStartNotificationPayload) as String?;
+
+  static Future<void> setConsumedColdStartNotificationPayload(
+    String payload,
+  ) async {
+    await _settings.put(_kConsumedColdStartNotificationPayload, payload);
+  }
+
+  static Future<void> clearConsumedColdStartNotificationPayload() async {
+    await _settings.delete(_kConsumedColdStartNotificationPayload);
   }
 }

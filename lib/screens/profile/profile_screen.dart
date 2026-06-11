@@ -5,6 +5,7 @@ import 'package:pulse/services/capsule_database.dart';
 import 'package:pulse/services/notification_service.dart';
 import 'package:pulse/services/settings_service.dart';
 import 'package:pulse/theme/my_app_theme.dart';
+import 'package:pulse/constants/app_info.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -18,6 +19,8 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> {
   static const _privacyPolicyUrl = 'https://app.abhishek-sharma.com.np/pulse/privacy';
   static const _dataDeletionUrl = 'https://app.abhishek-sharma.com.np/pulse/account-deletion';
+
+  final String _versionLabel = AppInfo.versionLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -97,7 +100,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             _ProfileTile(
               icon: Icons.info_outline,
               title: 'About P.U.L.S.E',
-              subtitle: 'Version 1.0.0',
+              subtitle: _versionLabel,
               onTap: _showAbout,
             ),
           ],
@@ -221,6 +224,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     await NotificationService().cancelAllNotifications();
     await CapsuleDatabase.deleteAllCapsules();
     await SettingsService.clearLock();
+    await SettingsService.clearConsumedColdStartNotificationPayload();
 
     if (!mounted) return;
     setState(() {});
