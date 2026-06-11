@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 class MyAppTheme {
   // Color constants for dark theme
@@ -29,53 +28,51 @@ class MyAppTheme {
   static Color get successColor => _darkSuccess;
 
   static TextTheme _buildTextTheme() {
-    final font = GoogleFonts.interTextTheme();
-
-    return TextTheme(
-      headlineLarge: font.headlineLarge?.copyWith(
+    return const TextTheme(
+      headlineLarge: TextStyle(
         fontSize: 32,
         fontWeight: FontWeight.w700,
         color: _darkText,
         letterSpacing: -0.5,
       ),
-      headlineMedium: font.headlineMedium?.copyWith(
+      headlineMedium: TextStyle(
         fontSize: 24,
         fontWeight: FontWeight.w600,
         color: _darkText,
         letterSpacing: -0.5,
       ),
-      headlineSmall: font.headlineSmall?.copyWith(
+      headlineSmall: TextStyle(
         fontSize: 20,
         fontWeight: FontWeight.w600,
         color: _darkText,
         letterSpacing: -0.3,
       ),
-      titleLarge: font.titleLarge?.copyWith(
+      titleLarge: TextStyle(
         fontSize: 18,
         fontWeight: FontWeight.w600,
         color: _darkText,
       ),
-      titleMedium: font.titleMedium?.copyWith(
+      titleMedium: TextStyle(
         fontSize: 16,
         fontWeight: FontWeight.w600,
         color: _darkText,
       ),
-      bodyLarge: font.bodyLarge?.copyWith(
+      bodyLarge: TextStyle(
         fontSize: 16,
         fontWeight: FontWeight.w500,
         color: _darkText,
       ),
-      bodyMedium: font.bodyMedium?.copyWith(
+      bodyMedium: TextStyle(
         fontSize: 14,
         fontWeight: FontWeight.w400,
         color: _darkTextSecondary,
       ),
-      bodySmall: font.bodySmall?.copyWith(
+      bodySmall: TextStyle(
         fontSize: 12,
         fontWeight: FontWeight.w400,
         color: _darkTextSecondary,
       ),
-      labelLarge: font.labelLarge?.copyWith(
+      labelLarge: TextStyle(
         fontSize: 16,
         fontWeight: FontWeight.w600,
         color: Colors.white,
@@ -85,11 +82,6 @@ class MyAppTheme {
 
   static final ThemeData darkTheme = _buildDarkTheme();
 
-  /// Preload Inter so the main UI does not stall on first paint.
-  static Future<void> preloadFonts() async {
-    await GoogleFonts.pendingFonts([GoogleFonts.inter()]);
-  }
-
   static ThemeData _buildDarkTheme() {
     final textTheme = _buildTextTheme();
 
@@ -97,7 +89,7 @@ class MyAppTheme {
       brightness: Brightness.dark,
       scaffoldBackgroundColor: _darkBackground,
       useMaterial3: true,
-      fontFamily: GoogleFonts.inter().fontFamily,
+      fontFamily: 'Roboto',
 
       colorScheme: const ColorScheme.dark(
         primary: _darkPrimary,

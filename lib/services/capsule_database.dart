@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:pulse/models/models.dart';
 import 'package:pulse/services/capsule_notifier.dart';
+import 'package:pulse/utils/hive_storage.dart';
 
 /// Service for managing voice capsules in Hive database
 class CapsuleDatabase {
@@ -11,7 +12,7 @@ class CapsuleDatabase {
 
   /// Initializes Hive and registers adapters (call once before opening boxes).
   static Future<void> prepareHive() async {
-    await Hive.initFlutter();
+    await initHiveSafe();
 
     if (!Hive.isAdapterRegistered(0)) {
       Hive.registerAdapter(VoiceCapsuleAdapter());
@@ -20,7 +21,7 @@ class CapsuleDatabase {
 
   /// Opens the capsules box. Requires [prepareHive] first.
   static Future<void> open() async {
-    _box = await Hive.openBox<VoiceCapsule>(_boxName);
+    _box = await openHiveBoxSafe<VoiceCapsule>(_boxName);
   }
 
   /// Initialize Hive and open the capsules box

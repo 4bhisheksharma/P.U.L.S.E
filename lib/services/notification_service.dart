@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:developer' as developer;
 
 import 'package:crypto/crypto.dart';
 import 'package:flutter/material.dart';
@@ -47,8 +48,19 @@ class NotificationService {
   }
 
   Future<void> _runDeferredMaintenance() async {
-    await requestPermissions();
-    await rescheduleAllCapsuleNotificationsIfNeeded();
+    if (!_isInitialized) return;
+
+    try {
+      await requestPermissions();
+      await rescheduleAllCapsuleNotificationsIfNeeded();
+    } catch (e, stack) {
+      developer.log(
+        'Notification maintenance failed',
+        name: 'NotificationService',
+        error: e,
+        stackTrace: stack,
+      );
+    }
   }
 
   static int _notificationId(String capsuleId, {int slot = 0}) {
@@ -73,33 +85,43 @@ class NotificationService {
   Future<void> initialize() async {
     if (_isInitialized) return;
 
-    tz.initializeTimeZones();
-    await _configureLocalTimeZone();
+    try {
+      tz.initializeTimeZones();
+      await _configureLocalTimeZone();
 
-    const androidSettings = AndroidInitializationSettings(
-      '@drawable/ic_notification',
-    );
+      const androidSettings = AndroidInitializationSettings(
+        '@drawable/ic_notification',
+      );
 
-    const iosSettings = DarwinInitializationSettings(
-      requestAlertPermission: true,
-      requestBadgePermission: true,
-      requestSoundPermission: true,
-    );
+      const iosSettings = DarwinInitializationSettings(
+        requestAlertPermission: true,
+        requestBadgePermission: true,
+        requestSoundPermission: true,
+      );
 
-    const initSettings = InitializationSettings(
-      android: androidSettings,
-      iOS: iosSettings,
-    );
+      const initSettings = InitializationSettings(
+        android: androidSettings,
+        iOS: iosSettings,
+      );
 
-    await _notifications.initialize(
-      initSettings,
-      onDidReceiveNotificationResponse: _onNotificationTap,
-    );
+      await _notifications.initialize(
+        initSettings,
+        onDidReceiveNotificationResponse: _onNotificationTap,
+      );
 
-    await _createAndroidNotificationChannel();
-    _canScheduleExactAlarms = await _checkExactAlarmPermission();
+      await _createAndroidNotificationChannel();
+      _canScheduleExactAlarms = await _checkExactAlarmPermission();
 
-    _isInitialized = true;
+      _isInitialized = true;
+    } catch (e, stack) {
+      developer.log(
+        'NotificationService.initialize failed',
+        name: 'NotificationService',
+        error: e,
+        stackTrace: stack,
+      );
+      rethrow;
+    }
   }
 
   /// Call once when the main UI is ready. Shows home by default; only opens a

@@ -3,7 +3,7 @@ description: "P.U.L.S.E - Personal Unseen Locker for Special Experience"
 
 publish_to: "none" # Remove this line if you wish to publish to pub.dev
 
-version: 1.0.0+1
+version: 1.0.2+2
 
 environment:
   sdk: ^3.8.1
@@ -13,7 +13,6 @@ dependencies:
     sdk: flutter
 
   cupertino_icons: ^1.0.8
-  google_fonts: ^6.2.1
   share_plus: ^10.1.4
   audioplayers: ^6.5.1
   record: ^6.1.2

@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:crypto/crypto.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import 'package:pulse/utils/hive_storage.dart';
 
 /// Lightweight key-value settings store backed by Hive.
 class SettingsService {
@@ -23,7 +24,7 @@ class SettingsService {
 
   /// Opens the settings box. Requires [CapsuleDatabase.prepareHive] first.
   static Future<void> open() async {
-    _box = await Hive.openBox(_boxName);
+    _box = await openHiveBoxSafe(_boxName);
   }
 
   static Future<void> init() async {

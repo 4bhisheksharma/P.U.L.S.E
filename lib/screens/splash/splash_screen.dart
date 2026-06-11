@@ -1,5 +1,7 @@
 import 'dart:async';
+import 'dart:developer' as developer;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:lottie/lottie.dart';
 import 'package:pulse/services/app_bootstrap.dart';
@@ -39,11 +41,21 @@ class _SplashScreenState extends State<SplashScreen> {
 
       if (!mounted) return;
       widget.onComplete();
-    } catch (e) {
+    } catch (e, stack) {
+      developer.log(
+        'App bootstrap failed',
+        name: 'SplashScreen',
+        error: e,
+        stackTrace: stack,
+      );
+      // ignore: avoid_print
+      print('[PULSE] Bootstrap failed: $e');
       if (!mounted) return;
       setState(() {
         _hasError = true;
-        _status = 'Something went wrong. Tap to retry.';
+        _status = kDebugMode
+            ? 'Startup failed: $e\nTap to retry.'
+            : 'Something went wrong. Tap to retry.';
       });
     }
   }
