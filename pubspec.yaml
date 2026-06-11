@@ -3,7 +3,7 @@ description: "P.U.L.S.E - Personal Unseen Locker for Special Experience"
 
 publish_to: "none" # Remove this line if you wish to publish to pub.dev
 
-version: 1.0.3+3
+version: 1.0.4+4
 
 environment:
   sdk: ^3.8.1
@@ -28,7 +28,6 @@ dependencies:
   crypto: ^3.0.7
   lottie: ^3.3.3
   in_app_update: ^4.2.5
-  flutter_timezone: ^4.1.0
   permission_handler: ^11.3.1
 
 

@@ -186,8 +186,6 @@ _Browse and replay your opened capsules_
 
 - **flutter_local_notifications** (^18.0.1): Local push notifications
 - **timezone** (^0.9.4): Timezone handling for scheduled notifications
-- **flutter_timezone** (^4.1.0): Device timezone for accurate unlock alerts
-
 #### Utilities
 
 - **uuid** (^4.5.1): Unique ID generation

@@ -5,7 +5,6 @@ import 'dart:developer' as developer;
 import 'package:crypto/crypto.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:timezone/data/latest.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 import 'package:pulse/models/models.dart';
@@ -81,16 +80,10 @@ class NotificationService {
     _timeZonesInitialized = true;
   }
 
-  Future<void> _configureLocalTimeZone() async {
+  void _configureLocalTimeZone() {
     _ensureTimeZonesInitialized();
-
-    try {
-      final timeZoneName = await FlutterTimezone.getLocalTimezone();
-      tz.setLocalLocation(tz.getLocation(timeZoneName));
-    } catch (e) {
-      _logFailure('Timezone lookup failed, using UTC', e);
-      tz.setLocalLocation(tz.getLocation('UTC'));
-    }
+    // Scheduling uses UTC instants derived from device-local DateTime values.
+    tz.setLocalLocation(tz.UTC);
   }
 
   /// Converts a device-local [dateTime] to an absolute UTC schedule instant.
@@ -121,11 +114,11 @@ class NotificationService {
     if (_isInitialized) return;
 
     try {
-      await _configureLocalTimeZone();
+      _configureLocalTimeZone();
 
       if (!_pluginInitialized) {
         const androidSettings = AndroidInitializationSettings(
-          '@mipmap/launcher_icon',
+          '@drawable/ic_notification',
         );
 
         const iosSettings = DarwinInitializationSettings(
@@ -169,22 +162,30 @@ class NotificationService {
 
   /// Schedules unlock (+ optional reminder). True when unlock alarm is set.
   Future<bool> scheduleForCapsule(VoiceCapsule capsule) async {
-    if (!await _ensureReady()) {
-      _logFailure('Notifications not ready', 'initialize returned false');
-      return false;
-    }
-
     try {
       await requestPermissions();
     } catch (e, stack) {
       _logFailure('requestPermissions failed', e, stack);
     }
 
+    if (!await _ensureReady()) {
+      _logFailure('Notifications not ready', 'initialize returned false');
+      return false;
+    }
+
+    final notificationsEnabled = await areNotificationsEnabled();
+    if (!notificationsEnabled) {
+      _logFailure(
+        'Notifications disabled at OS level',
+        'areNotificationsEnabled=false',
+      );
+      return false;
+    }
+
     var unlockScheduled = false;
 
     try {
-      await scheduleCapsuleUnlockNotification(capsule);
-      unlockScheduled = true;
+      unlockScheduled = await scheduleCapsuleUnlockNotification(capsule);
     } catch (e, stack) {
       _logFailure('Unlock notification schedule failed', e, stack);
     }
@@ -356,10 +357,17 @@ class NotificationService {
       if (alreadyEnabled != true) {
         androidGranted = await androidPlugin.requestNotificationsPermission();
       }
-      _canScheduleExactAlarms = await _checkExactAlarmPermission();
-      if (!_canScheduleExactAlarms) {
-        await androidPlugin.requestExactAlarmsPermission();
+
+      // Exact alarms are optional — inexact scheduling still works without them.
+      try {
         _canScheduleExactAlarms = await _checkExactAlarmPermission();
+        if (!_canScheduleExactAlarms) {
+          await androidPlugin.requestExactAlarmsPermission();
+          _canScheduleExactAlarms = await _checkExactAlarmPermission();
+        }
+      } catch (e, stack) {
+        _canScheduleExactAlarms = false;
+        _logFailure('Exact alarm permission check failed', e, stack);
       }
     }
 
@@ -393,9 +401,15 @@ class NotificationService {
     const interpretation =
         UILocalNotificationDateInterpretation.absoluteTime;
 
+    // User-chosen unlock times are a valid exact-alarm use case. Prefer exact
+    // modes when permitted; fall back to inexact (required on Android 14+ without
+    // alarm permission).
     final modes = <AndroidScheduleMode>[
-      if (_canScheduleExactAlarms) AndroidScheduleMode.exactAllowWhileIdle,
+      if (_canScheduleExactAlarms) AndroidScheduleMode.alarmClock,
+      if (_canScheduleExactAlarms)
+        AndroidScheduleMode.exactAllowWhileIdle,
       AndroidScheduleMode.inexactAllowWhileIdle,
+      AndroidScheduleMode.inexact,
     ];
 
     Object? lastError;
@@ -411,32 +425,50 @@ class NotificationService {
           uiLocalNotificationDateInterpretation: interpretation,
           payload: payload,
         );
+
+        // zonedSchedule completing without error is treated as success.
+        // pendingNotificationRequests() is unreliable for inexact alarms on
+        // some OEM/release builds and caused false failures in Play testing.
+        try {
+          final pending = await _notifications.pendingNotificationRequests();
+          if (!pending.any((request) => request.id == id)) {
+            _logFailure(
+              'Scheduled $id but not in pending list (mode=$mode)',
+              'pending verification skipped',
+            );
+          }
+        } catch (_) {}
+
         return;
       } catch (e) {
         lastError = e;
+        _logFailure('zonedSchedule mode=$mode failed', e);
       }
     }
 
     throw Exception('zonedSchedule failed: $lastError');
   }
 
-  /// Schedule notification for capsule unlock
-  Future<void> scheduleCapsuleUnlockNotification(VoiceCapsule capsule) async {
-    if (!await _ensureReady()) return;
+  /// Schedule notification for capsule unlock. Returns true when verified.
+  Future<bool> scheduleCapsuleUnlockNotification(VoiceCapsule capsule) async {
+    if (!await _ensureReady()) return false;
 
-    if (capsule.unlockDate.isBefore(DateTime.now())) {
-      return;
+    if (!capsule.unlockDate.isAfter(DateTime.now())) {
+      return false;
     }
 
+    final id = _notificationId(capsule.id);
     final scheduledDate = _toScheduledTime(capsule.unlockDate);
 
     await _zonedScheduleWithFallback(
-      id: _notificationId(capsule.id),
+      id: id,
       title: 'Time Capsule Unlocked',
       body: '${capsule.title} is ready to open',
       scheduledDate: scheduledDate,
       payload: capsule.id,
     );
+
+    return true;
   }
 
   /// Schedule reminder before unlock (1 day before)
@@ -494,9 +526,6 @@ class NotificationService {
         importance: Importance.high,
         priority: Priority.high,
         icon: '@drawable/ic_notification',
-        largeIcon: const DrawableResourceAndroidBitmap(
-          '@mipmap/launcher_icon',
-        ),
         color: const Color(0xFF7C73FF),
         playSound: true,
         enableVibration: true,
@@ -536,7 +565,11 @@ class NotificationService {
     final lockedCapsules = CapsuleDatabase.getLockedCapsules();
     for (final capsule in lockedCapsules) {
       await scheduleCapsuleUnlockNotification(capsule);
-      await scheduleUnlockReminder(capsule);
+      try {
+        await scheduleUnlockReminder(capsule);
+      } catch (e, stack) {
+        _logFailure('Reminder reschedule failed', e, stack);
+      }
     }
   }
 

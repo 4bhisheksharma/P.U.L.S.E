@@ -243,7 +243,7 @@ class _RecordingScreenState extends State<RecordingScreen> {
           SnackBar(
             content: const Text(
               'Capsule saved, but unlock alerts could not be scheduled. '
-              'Check notification and alarm permissions for PULSE in Settings.',
+              'In Settings, allow Notifications and Alarms & reminders for PULSE.',
             ),
             backgroundColor: MyAppTheme.warningColor,
             duration: const Duration(seconds: 5),
