@@ -3,5 +3,5 @@ class AppInfo {
   static const version = '1.0.3';
   static const buildNumber = '3';
 
-  static String get versionLabel => 'Version $version ($buildNumber)';
+  static String get versionLabel => 'Version $version ($buildNumber)-dev';
 }

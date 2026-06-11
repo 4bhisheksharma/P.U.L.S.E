@@ -233,17 +233,25 @@ class _RecordingScreenState extends State<RecordingScreen> {
 
       await CapsuleDatabase.addCapsule(capsule);
 
-      try {
-        await NotificationService().scheduleCapsuleUnlockNotification(capsule);
-        await NotificationService().scheduleUnlockReminder(capsule);
-      } catch (e) {
-        await CapsuleDatabase.deleteCapsule(capsule.id, deleteAudioFile: false);
-        throw Exception('Saved capsule but failed to schedule notifications');
+      final notificationsScheduled =
+          await NotificationService().scheduleForCapsule(capsule);
+
+      if (!mounted) return;
+
+      if (!notificationsScheduled) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text(
+              'Capsule saved, but unlock alerts could not be scheduled. '
+              'Check notification and alarm permissions for PULSE in Settings.',
+            ),
+            backgroundColor: MyAppTheme.warningColor,
+            duration: const Duration(seconds: 5),
+          ),
+        );
       }
 
-      if (mounted) {
-        Navigator.pop(context, true);
-      }
+      Navigator.pop(context, true);
     } catch (e) {
       _showError('Failed to save capsule: $e');
     } finally {

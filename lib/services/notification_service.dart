@@ -28,7 +28,10 @@ class NotificationService {
   final FlutterLocalNotificationsPlugin _notifications =
       FlutterLocalNotificationsPlugin();
 
+  static bool _timeZonesInitialized = false;
+
   bool _isInitialized = false;
+  bool _pluginInitialized = false;
   bool _canScheduleExactAlarms = true;
   String? _pendingCapsuleId;
   bool _isNavigating = false;
@@ -72,13 +75,45 @@ class NotificationService {
         0x7FFFFFFF;
   }
 
+  void _ensureTimeZonesInitialized() {
+    if (_timeZonesInitialized) return;
+    tz.initializeTimeZones();
+    _timeZonesInitialized = true;
+  }
+
   Future<void> _configureLocalTimeZone() async {
+    _ensureTimeZonesInitialized();
+
     try {
       final timeZoneName = await FlutterTimezone.getLocalTimezone();
       tz.setLocalLocation(tz.getLocation(timeZoneName));
-    } catch (_) {
-      // Keep default location if platform lookup fails.
+    } catch (e) {
+      _logFailure('Timezone lookup failed, using UTC', e);
+      tz.setLocalLocation(tz.getLocation('UTC'));
     }
+  }
+
+  /// Converts a device-local [dateTime] to an absolute UTC schedule instant.
+  tz.TZDateTime _toScheduledTime(DateTime dateTime) {
+    _ensureTimeZonesInitialized();
+    return tz.TZDateTime.from(dateTime.toUtc(), tz.UTC);
+  }
+
+  Future<bool> _ensureReady() async {
+    if (_isInitialized) return true;
+    await initialize();
+    return _isInitialized;
+  }
+
+  void _logFailure(String message, Object error, [StackTrace? stack]) {
+    developer.log(
+      message,
+      name: 'NotificationService',
+      error: error,
+      stackTrace: stack,
+    );
+    // ignore: avoid_print
+    print('[PULSE] $message: $error');
   }
 
   /// Initialize notification service
@@ -86,42 +121,81 @@ class NotificationService {
     if (_isInitialized) return;
 
     try {
-      tz.initializeTimeZones();
       await _configureLocalTimeZone();
 
-      const androidSettings = AndroidInitializationSettings(
-        '@drawable/ic_notification',
-      );
+      if (!_pluginInitialized) {
+        const androidSettings = AndroidInitializationSettings(
+          '@mipmap/launcher_icon',
+        );
 
-      const iosSettings = DarwinInitializationSettings(
-        requestAlertPermission: true,
-        requestBadgePermission: true,
-        requestSoundPermission: true,
-      );
+        const iosSettings = DarwinInitializationSettings(
+          requestAlertPermission: true,
+          requestBadgePermission: true,
+          requestSoundPermission: true,
+        );
 
-      const initSettings = InitializationSettings(
-        android: androidSettings,
-        iOS: iosSettings,
-      );
+        const initSettings = InitializationSettings(
+          android: androidSettings,
+          iOS: iosSettings,
+        );
 
-      await _notifications.initialize(
-        initSettings,
-        onDidReceiveNotificationResponse: _onNotificationTap,
-      );
+        await _notifications.initialize(
+          initSettings,
+          onDidReceiveNotificationResponse: _onNotificationTap,
+        );
+        _pluginInitialized = true;
+      }
 
-      await _createAndroidNotificationChannel();
-      _canScheduleExactAlarms = await _checkExactAlarmPermission();
+      try {
+        await _createAndroidNotificationChannel();
+      } catch (e, stack) {
+        _logFailure('Notification channel setup failed', e, stack);
+      }
+
+      try {
+        _canScheduleExactAlarms = await _checkExactAlarmPermission();
+      } catch (_) {
+        _canScheduleExactAlarms = false;
+      }
 
       _isInitialized = true;
     } catch (e, stack) {
-      developer.log(
-        'NotificationService.initialize failed',
-        name: 'NotificationService',
-        error: e,
-        stackTrace: stack,
-      );
-      rethrow;
+      _logFailure('NotificationService.initialize failed', e, stack);
+      if (_pluginInitialized) {
+        _isInitialized = true;
+      }
     }
+  }
+
+  /// Schedules unlock (+ optional reminder). True when unlock alarm is set.
+  Future<bool> scheduleForCapsule(VoiceCapsule capsule) async {
+    if (!await _ensureReady()) {
+      _logFailure('Notifications not ready', 'initialize returned false');
+      return false;
+    }
+
+    try {
+      await requestPermissions();
+    } catch (e, stack) {
+      _logFailure('requestPermissions failed', e, stack);
+    }
+
+    var unlockScheduled = false;
+
+    try {
+      await scheduleCapsuleUnlockNotification(capsule);
+      unlockScheduled = true;
+    } catch (e, stack) {
+      _logFailure('Unlock notification schedule failed', e, stack);
+    }
+
+    try {
+      await scheduleUnlockReminder(capsule);
+    } catch (e, stack) {
+      _logFailure('Reminder notification schedule failed', e, stack);
+    }
+
+    return unlockScheduled;
   }
 
   /// Call once when the main UI is ready. Shows home by default; only opens a
@@ -188,12 +262,6 @@ class NotificationService {
 
     final canSchedule = await androidPlugin.canScheduleExactNotifications();
     return canSchedule ?? true;
-  }
-
-  AndroidScheduleMode get _scheduleMode {
-    return _canScheduleExactAlarms
-        ? AndroidScheduleMode.exactAllowWhileIdle
-        : AndroidScheduleMode.inexactAllowWhileIdle;
   }
 
   /// Handle notification tap while app is running or in background.
@@ -307,32 +375,73 @@ class NotificationService {
     return (androidGranted ?? true) && (iosGranted ?? true);
   }
 
+  Future<void> _zonedScheduleWithFallback({
+    required int id,
+    required String title,
+    required String body,
+    required tz.TZDateTime scheduledDate,
+    required String payload,
+  }) async {
+    final now = tz.TZDateTime.now(tz.UTC);
+    if (!scheduledDate.isAfter(now)) {
+      throw StateError(
+        'Scheduled time $scheduledDate is not after now $now',
+      );
+    }
+
+    final details = notificationDetails();
+    const interpretation =
+        UILocalNotificationDateInterpretation.absoluteTime;
+
+    final modes = <AndroidScheduleMode>[
+      if (_canScheduleExactAlarms) AndroidScheduleMode.exactAllowWhileIdle,
+      AndroidScheduleMode.inexactAllowWhileIdle,
+    ];
+
+    Object? lastError;
+    for (final mode in modes) {
+      try {
+        await _notifications.zonedSchedule(
+          id,
+          title,
+          body,
+          scheduledDate,
+          details,
+          androidScheduleMode: mode,
+          uiLocalNotificationDateInterpretation: interpretation,
+          payload: payload,
+        );
+        return;
+      } catch (e) {
+        lastError = e;
+      }
+    }
+
+    throw Exception('zonedSchedule failed: $lastError');
+  }
+
   /// Schedule notification for capsule unlock
   Future<void> scheduleCapsuleUnlockNotification(VoiceCapsule capsule) async {
-    if (!_isInitialized) await initialize();
+    if (!await _ensureReady()) return;
 
     if (capsule.unlockDate.isBefore(DateTime.now())) {
       return;
     }
 
-    final scheduledDate = tz.TZDateTime.from(capsule.unlockDate, tz.local);
+    final scheduledDate = _toScheduledTime(capsule.unlockDate);
 
-    await _notifications.zonedSchedule(
-      _notificationId(capsule.id),
-      'Time Capsule Unlocked',
-      '${capsule.title} is ready to open',
-      scheduledDate,
-      notificationDetails(),
-      androidScheduleMode: _scheduleMode,
-      uiLocalNotificationDateInterpretation:
-          UILocalNotificationDateInterpretation.absoluteTime,
+    await _zonedScheduleWithFallback(
+      id: _notificationId(capsule.id),
+      title: 'Time Capsule Unlocked',
+      body: '${capsule.title} is ready to open',
+      scheduledDate: scheduledDate,
       payload: capsule.id,
     );
   }
 
   /// Schedule reminder before unlock (1 day before)
   Future<void> scheduleUnlockReminder(VoiceCapsule capsule) async {
-    if (!_isInitialized) await initialize();
+    if (!await _ensureReady()) return;
 
     final reminderDate = capsule.unlockDate.subtract(const Duration(days: 1));
 
@@ -340,17 +449,13 @@ class NotificationService {
       return;
     }
 
-    final scheduledDate = tz.TZDateTime.from(reminderDate, tz.local);
+    final scheduledDate = _toScheduledTime(reminderDate);
 
-    await _notifications.zonedSchedule(
-      _notificationId(capsule.id, slot: 1),
-      'Capsule Unlocking Soon',
-      '${capsule.title} unlocks tomorrow!',
-      scheduledDate,
-      notificationDetails(),
-      androidScheduleMode: _scheduleMode,
-      uiLocalNotificationDateInterpretation:
-          UILocalNotificationDateInterpretation.absoluteTime,
+    await _zonedScheduleWithFallback(
+      id: _notificationId(capsule.id, slot: 1),
+      title: 'Capsule Unlocking Soon',
+      body: '${capsule.title} unlocks tomorrow!',
+      scheduledDate: scheduledDate,
       payload: capsule.id,
     );
   }
