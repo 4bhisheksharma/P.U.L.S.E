@@ -186,12 +186,12 @@ _Browse and replay your opened capsules_
 
 - **flutter_local_notifications** (^18.0.1): Local push notifications
 - **timezone** (^0.9.4): Timezone handling for scheduled notifications
-- **permission_handler** (^11.3.1): Runtime permissions
 
 #### Utilities
 
 - **uuid** (^4.5.1): Unique ID generation
 - **intl** (^0.19.0): Date/time formatting
+- **url_launcher** (^6.3.2): Open privacy and data-deletion policy links
 
 ### Development Tools
 
@@ -275,21 +275,33 @@ lib/
 
 ### Data Storage
 
-- ✅ **100% Local**: All data stored on device using Hive
-- ✅ **No Cloud**: No internet connection required
+- ✅ **100% Local**: All capsule metadata stored on device using Hive
+- ✅ **No Cloud**: No servers, accounts, or remote data sync
 - ✅ **No Tracking**: Zero analytics or telemetry
-- ✅ **Encrypted**: Hive provides encrypted box support (optional)
+- ✅ **Device-protected**: Audio files live in the app documents directory; security depends on your device lock and OS encryption
+- ℹ️ **Hive is not encrypted** in the current app build (plain Hive boxes)
+
+### Limited Network Use
+
+The app works offline for all core features. A small amount of network activity may occur:
+
+- **Google Fonts**: The Inter typeface may be downloaded on first use
+- **Google Play In-App Updates** (Android only): Checks for app updates via the Play Store
+- **User-initiated sharing**: Exporting a capsule uses the OS share sheet (your choice of destination)
+
+No voice recordings or capsule metadata are sent to developer-operated servers.
 
 ### Permissions
 
 - **Microphone**: Required for audio recording
-- **Storage**: For saving audio files
 - **Notifications**: Optional, for unlock alerts
+- **Biometrics**: Optional, for app lock
 
 ### Data Control
 
-- **Delete anytime**: Full control over your data
-- **Export/Backup**: Can be added in future versions
+- **Delete anytime**: Remove individual capsules from the home or played screens
+- **Delete all data**: Profile → Delete All Data removes all capsules, audio files, app lock, and notifications
+- **Privacy links**: Profile → Privacy Policy and Data Deletion (hosted policy URLs)
 - **No account needed**: Works immediately after install
 
 ---

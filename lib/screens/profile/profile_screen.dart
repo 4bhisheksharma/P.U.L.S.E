@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:pulse/screens/notifications/scheduled_notifications_screen.dart';
 import 'package:pulse/screens/security/security_screen.dart';
 import 'package:pulse/services/capsule_database.dart';
+import 'package:pulse/services/notification_service.dart';
 import 'package:pulse/services/settings_service.dart';
 import 'package:pulse/theme/my_app_theme.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -14,6 +16,9 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
+  static const _privacyPolicyUrl = 'https://app.abhishek-sharma.com.np/pulse/privacy';
+  static const _dataDeletionUrl = 'https://app.abhishek-sharma.com.np/pulse/account-deletion';
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -59,6 +64,32 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                 );
               },
+            ),
+            const SizedBox(height: 28),
+            _SectionLabel(label: 'Privacy & Legal'),
+            const SizedBox(height: 12),
+            _ProfileTile(
+              icon: Icons.privacy_tip_outlined,
+              title: 'Privacy Policy',
+              subtitle: 'How your data is handled',
+              onTap: () => _openUrl(_privacyPolicyUrl),
+            ),
+            const SizedBox(height: 12),
+            _ProfileTile(
+              icon: Icons.delete_forever_outlined,
+              title: 'Data Deletion',
+              subtitle: 'How to remove your data',
+              onTap: () => _openUrl(_dataDeletionUrl),
+            ),
+            const SizedBox(height: 28),
+            _SectionLabel(label: 'Data'),
+            const SizedBox(height: 12),
+            _ProfileTile(
+              icon: Icons.warning_amber_rounded,
+              title: 'Delete All Data',
+              subtitle: 'Remove all capsules, audio, and app lock',
+              iconColor: MyAppTheme.errorColor,
+              onTap: _confirmDeleteAllData,
             ),
             const SizedBox(height: 28),
             _SectionLabel(label: 'About'),
@@ -145,6 +176,62 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  Future<void> _openUrl(String url) async {
+    final uri = Uri.parse(url);
+    final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!launched && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Could not open link'),
+          backgroundColor: MyAppTheme.errorColor,
+        ),
+      );
+    }
+  }
+
+  Future<void> _confirmDeleteAllData() async {
+    final total = CapsuleDatabase.count;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete All Data?'),
+        content: Text(
+          total == 0
+              ? 'This will remove your app lock and cancel all scheduled notifications. This cannot be undone.'
+              : 'This will permanently delete all $total capsule${total == 1 ? '' : 's'}, '
+                  'including audio recordings, app lock settings, and scheduled notifications. '
+                  'This cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: MyAppTheme.errorColor),
+            child: const Text('Delete All'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    await NotificationService().cancelAllNotifications();
+    await CapsuleDatabase.deleteAllCapsules();
+    await SettingsService.clearLock();
+
+    if (!mounted) return;
+    setState(() {});
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Text('All data deleted'),
+        backgroundColor: MyAppTheme.successColor,
+      ),
+    );
+  }
+
   void _showAbout() {
     Share.share(
       'Check out P.U.L.S.E - Personal Unseen Locker for Special Experience',
@@ -176,17 +263,21 @@ class _ProfileTile extends StatelessWidget {
   final String title;
   final String subtitle;
   final VoidCallback onTap;
+  final Color? iconColor;
 
   const _ProfileTile({
     required this.icon,
     required this.title,
     required this.subtitle,
     required this.onTap,
+    this.iconColor,
   });
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final color = iconColor ?? theme.colorScheme.primary;
+
     return Material(
       color: theme.cardColor,
       borderRadius: BorderRadius.circular(16),
@@ -200,10 +291,10 @@ class _ProfileTile extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: theme.colorScheme.primary.withValues(alpha: 0.12),
+                  color: color.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: Icon(icon, color: theme.colorScheme.primary, size: 22),
+                child: Icon(icon, color: color, size: 22),
               ),
               const SizedBox(width: 16),
               Expanded(

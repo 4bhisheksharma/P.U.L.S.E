@@ -81,14 +81,14 @@ class CapsuleActions {
     );
   }
 
-  static void showSnackBar(
+  static ScaffoldFeatureController<SnackBar, SnackBarClosedReason> showSnackBar(
     BuildContext context, {
     required IconData icon,
     required String message,
     Color? backgroundColor,
     SnackBarAction? action,
   }) {
-    ScaffoldMessenger.of(context).showSnackBar(
+    return ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Row(
           children: [

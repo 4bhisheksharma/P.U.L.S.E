@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:pulse/models/models.dart';
 import 'package:pulse/services/capsule_notifier.dart';
@@ -61,14 +63,34 @@ class CapsuleDatabase {
     CapsuleNotifier.instance.notifyChanged();
   }
 
-  /// Delete a capsule
-  static Future<void> deleteCapsule(String id) async {
-    await box.delete(id);
-    CapsuleNotifier.instance.notifyChanged();
+  /// Deletes the audio file at [path] if it exists.
+  static Future<void> deleteAudioFileAt(String path) async {
+    try {
+      final file = File(path);
+      if (await file.exists()) {
+        await file.delete();
+      }
+    } catch (_) {}
   }
 
-  /// Delete all capsules
+  /// Delete a capsule and optionally its audio file.
+  static Future<void> deleteCapsule(
+    String id, {
+    bool deleteAudioFile = true,
+  }) async {
+    final capsule = getCapsuleById(id);
+    await box.delete(id);
+    CapsuleNotifier.instance.notifyChanged();
+    if (deleteAudioFile && capsule != null) {
+      await deleteAudioFileAt(capsule.audioFilePath);
+    }
+  }
+
+  /// Delete all capsules and their audio files.
   static Future<void> deleteAllCapsules() async {
+    for (final capsule in box.values) {
+      await deleteAudioFileAt(capsule.audioFilePath);
+    }
     await box.clear();
     CapsuleNotifier.instance.notifyChanged();
   }

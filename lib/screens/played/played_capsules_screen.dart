@@ -198,7 +198,10 @@ class _PlayedCapsulesScreenState extends State<PlayedCapsulesScreen> {
 
   void _handleDelete(VoiceCapsule capsule, {bool showUndo = false}) async {
     await NotificationService().cancelCapsuleNotification(capsule.id);
-    await CapsuleDatabase.deleteCapsule(capsule.id);
+    await CapsuleDatabase.deleteCapsule(
+      capsule.id,
+      deleteAudioFile: !showUndo,
+    );
     await _loadCapsules();
 
     if (mounted && showUndo) {
@@ -212,10 +215,18 @@ class _PlayedCapsulesScreenState extends State<PlayedCapsulesScreen> {
           textColor: Colors.white,
           onPressed: () async {
             await CapsuleDatabase.addCapsule(capsule);
+            await NotificationService().scheduleCapsuleUnlockNotification(
+              capsule,
+            );
+            await NotificationService().scheduleUnlockReminder(capsule);
             await _loadCapsules();
           },
         ),
-      );
+      ).closed.then((reason) {
+        if (reason != SnackBarClosedReason.action) {
+          CapsuleDatabase.deleteAudioFileAt(capsule.audioFilePath);
+        }
+      });
     }
   }
 }

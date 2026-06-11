@@ -457,7 +457,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _handleDelete(VoiceCapsule capsule) async {
     await NotificationService().cancelCapsuleNotification(capsule.id);
-    await CapsuleDatabase.deleteCapsule(capsule.id);
+    await CapsuleDatabase.deleteCapsule(capsule.id, deleteAudioFile: false);
     await _loadCapsules();
 
     if (mounted) {
@@ -478,7 +478,11 @@ class _HomeScreenState extends State<HomeScreen> {
             await _loadCapsules();
           },
         ),
-      );
+      ).closed.then((reason) {
+        if (reason != SnackBarClosedReason.action) {
+          CapsuleDatabase.deleteAudioFileAt(capsule.audioFilePath);
+        }
+      });
     }
   }
 
