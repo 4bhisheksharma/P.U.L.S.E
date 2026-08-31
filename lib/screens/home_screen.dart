@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:pulse/models/models.dart';
 import 'package:pulse/services/capsule_database.dart';
 import 'package:pulse/services/capsule_notifier.dart';
@@ -14,6 +15,8 @@ import 'package:pulse/screens/recording/recording_screen.dart';
 import 'package:pulse/screens/player/audio_player_screen.dart';
 import 'package:pulse/screens/notifications/scheduled_notifications_screen.dart';
 
+enum CapsuleTabFilter { all, locked, ready }
+
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -26,7 +29,9 @@ class _HomeScreenState extends State<HomeScreen> {
   List<VoiceCapsule> _allCapsules = [];
   List<VoiceCapsule> _filteredCapsules = [];
   bool _isLoading = true;
+  int _pendingNotificationsCount = 0;
 
+  CapsuleTabFilter _tabFilter = CapsuleTabFilter.all;
   late CapsuleSortOption _sortOption;
   EmotionTag? _emotionFilter;
 
@@ -37,14 +42,28 @@ class _HomeScreenState extends State<HomeScreen> {
     _emotionFilter = EmotionTag.fromString(SettingsService.emotionFilter);
     CapsuleNotifier.instance.revision.addListener(_onCapsulesChanged);
     _loadCapsules(showLoader: true);
+    _checkPendingNotifications();
   }
 
   bool get _hasActiveFilters =>
       _emotionFilter != null ||
-      _sortOption != CapsuleSortOption.soonestUnlock;
+      _sortOption != CapsuleSortOption.soonestUnlock ||
+      _tabFilter != CapsuleTabFilter.all;
 
   void _onCapsulesChanged() {
-    if (mounted) _loadCapsules();
+    if (mounted) {
+      _loadCapsules();
+      _checkPendingNotifications();
+    }
+  }
+
+  Future<void> _checkPendingNotifications() async {
+    try {
+      final pending = await NotificationService().getPendingNotifications();
+      if (mounted) {
+        setState(() => _pendingNotificationsCount = pending.length);
+      }
+    } catch (_) {}
   }
 
   Future<void> _loadCapsules({bool showLoader = false}) async {
@@ -62,6 +81,18 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _applyFilters() {
     var result = List<VoiceCapsule>.from(_allCapsules);
+
+    // Tab filter (All, Locked, Ready)
+    switch (_tabFilter) {
+      case CapsuleTabFilter.all:
+        break;
+      case CapsuleTabFilter.locked:
+        result = result.where((c) => c.state == CapsuleState.locked).toList();
+        break;
+      case CapsuleTabFilter.ready:
+        result = result.where((c) => c.state == CapsuleState.unlockable).toList();
+        break;
+    }
 
     // Emotion filter
     final emotion = _emotionFilter;
@@ -110,30 +141,97 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final lockedCount = _allCapsules.where((c) => c.state == CapsuleState.locked).length;
+    final readyCount = _allCapsules.where((c) => c.state == CapsuleState.unlockable).length;
+
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: MyAppTheme.backgroundColor,
-        elevation: 0,
+        titleSpacing: 20,
         title: Row(
           children: [
-            Image.asset(
-              'assets/images/pulse.png',
-              height: 55,
-              fit: BoxFit.contain,
+            Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                color: MyAppTheme.primaryColor.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(9),
+              ),
+              child: Icon(
+                Icons.hourglass_top_rounded,
+                color: MyAppTheme.primaryColor,
+                size: 18,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Text(
+              'P.U.L.S.E',
+              style: theme.textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.w700,
+                letterSpacing: 1.2,
+              ),
             ),
           ],
         ),
         actions: [
           IconButton(
-            icon: Icon(
-              _hasActiveFilters ? Icons.tune_rounded : Icons.tune_outlined,
-              color: _hasActiveFilters ? theme.colorScheme.primary : null,
+            icon: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Icon(
+                  _hasActiveFilters ? Icons.tune_rounded : Icons.tune_outlined,
+                  color: _hasActiveFilters ? MyAppTheme.primaryColor : null,
+                  size: 22,
+                ),
+                if (_hasActiveFilters)
+                  Positioned(
+                    right: -2,
+                    top: -2,
+                    child: Container(
+                      width: 7,
+                      height: 7,
+                      decoration: BoxDecoration(
+                        color: MyAppTheme.primaryColor,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                  ),
+              ],
             ),
             tooltip: 'Sort & filter',
             onPressed: _showSortFilterSheet,
           ),
           IconButton(
-            icon: const Icon(Icons.notifications_outlined),
+            icon: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                const Icon(Icons.notifications_outlined, size: 22),
+                if (_pendingNotificationsCount > 0)
+                  Positioned(
+                    right: -4,
+                    top: -4,
+                    child: Container(
+                      padding: const EdgeInsets.all(3),
+                      decoration: BoxDecoration(
+                        color: MyAppTheme.primaryColor,
+                        shape: BoxShape.circle,
+                      ),
+                      constraints: const BoxConstraints(
+                        minWidth: 14,
+                        minHeight: 14,
+                      ),
+                      child: Text(
+                        _pendingNotificationsCount > 9 ? '9+' : '$_pendingNotificationsCount',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 8.5,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
             tooltip: 'Scheduled notifications',
             onPressed: () {
               Navigator.push(
@@ -141,39 +239,43 @@ class _HomeScreenState extends State<HomeScreen> {
                 MaterialPageRoute(
                   builder: (context) => const ScheduledNotificationsScreen(),
                 ),
-              );
+              ).then((_) => _checkPendingNotifications());
             },
           ),
+          const SizedBox(width: 8),
         ],
       ),
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.all(20.0),
+          padding: const EdgeInsets.symmetric(horizontal: 18),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              const SizedBox(height: 8),
               SearchBarWidget(
                 controller: _searchController,
                 onChanged: _handleSearch,
-                hintText: 'Search your capsules...',
+                hintText: 'Search voice capsules...',
               ),
+              const SizedBox(height: 12),
+              _buildFilterChipsRow(theme, lockedCount, readyCount),
               if (_searchController.text.isNotEmpty) ...[
-                const SizedBox(height: 16),
+                const SizedBox(height: 10),
                 SearchResultsCounter(
                   query: _searchController.text,
                   resultCount: _filteredCapsules.length,
                   totalCount: _allCapsules.length,
                 ),
-              ] else if (_hasActiveFilters) ...[
-                const SizedBox(height: 16),
-                _buildActiveFiltersBar(theme),
               ],
-              const SizedBox(height: 24),
+              const SizedBox(height: 12),
               Expanded(
                 child: _isLoading
                     ? const Center(child: CircularProgressIndicator())
                     : RefreshIndicator(
-                        onRefresh: _loadCapsules,
+                        onRefresh: () async {
+                          await _loadCapsules();
+                          await _checkPendingNotifications();
+                        },
                         child: _buildRecordingsList(),
                       ),
               ),
@@ -185,43 +287,145 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildActiveFiltersBar(ThemeData theme) {
-    return Row(
-      children: [
-        Icon(_sortOption.icon, size: 16, color: theme.colorScheme.primary),
-        const SizedBox(width: 6),
-        Flexible(
-          child: Text(
-            _emotionFilter != null
-                ? '${_sortOption.label} · ${_emotionFilter!.label}'
-                : _sortOption.label,
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.primary,
-              fontWeight: FontWeight.w600,
-            ),
-            overflow: TextOverflow.ellipsis,
+  Widget _buildFilterChipsRow(ThemeData theme, int lockedCount, int readyCount) {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: [
+          _buildTabChip(
+            label: 'All (${_allCapsules.length})',
+            isSelected: _tabFilter == CapsuleTabFilter.all,
+            onTap: () {
+              setState(() {
+                _tabFilter = CapsuleTabFilter.all;
+                _applyFilters();
+              });
+            },
           ),
-        ),
-        const Spacer(),
-        InkWell(
-          borderRadius: BorderRadius.circular(8),
-          onTap: _clearFilters,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            child: Row(
-              children: [
-                Icon(
-                  Icons.close_rounded,
-                  size: 14,
-                  color: theme.textTheme.bodySmall?.color,
+          const SizedBox(width: 8),
+          _buildTabChip(
+            label: 'Locked ($lockedCount)',
+            icon: Icons.lock_outline,
+            isSelected: _tabFilter == CapsuleTabFilter.locked,
+            onTap: () {
+              setState(() {
+                _tabFilter = CapsuleTabFilter.locked;
+                _applyFilters();
+              });
+            },
+          ),
+          const SizedBox(width: 8),
+          _buildTabChip(
+            label: 'Ready ($readyCount)',
+            icon: Icons.lock_open_rounded,
+            isSelected: _tabFilter == CapsuleTabFilter.ready,
+            accentColor: MyAppTheme.successColor,
+            onTap: () {
+              setState(() {
+                _tabFilter = CapsuleTabFilter.ready;
+                _applyFilters();
+              });
+            },
+          ),
+          if (_emotionFilter != null) ...[
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: MyAppTheme.primaryColor.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: MyAppTheme.primaryColor.withValues(alpha: 0.4),
+                  width: 1,
                 ),
-                const SizedBox(width: 4),
-                Text('Reset', style: theme.textTheme.bodySmall),
-              ],
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(_emotionFilter!.icon, size: 14, color: MyAppTheme.primaryColor),
+                  const SizedBox(width: 4),
+                  Text(
+                    _emotionFilter!.label,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: MyAppTheme.primaryColor,
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  GestureDetector(
+                    onTap: () {
+                      setState(() {
+                        _emotionFilter = null;
+                        _applyFilters();
+                      });
+                      SettingsService.setEmotionFilter(null);
+                    },
+                    child: const Icon(Icons.close_rounded, size: 14, color: Colors.white70),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTabChip({
+    required String label,
+    IconData? icon,
+    required bool isSelected,
+    required VoidCallback onTap,
+    Color? accentColor,
+  }) {
+    final activeColor = accentColor ?? MyAppTheme.primaryColor;
+
+    return Material(
+      color: isSelected
+          ? activeColor.withValues(alpha: 0.16)
+          : MyAppTheme.surfaceColor,
+      borderRadius: BorderRadius.circular(10),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(10),
+        onTap: () {
+          HapticFeedback.selectionClick();
+          onTap();
+        },
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: isSelected
+                  ? activeColor.withValues(alpha: 0.5)
+                  : MyAppTheme.borderColor,
+              width: 1,
             ),
           ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (icon != null) ...[
+                Icon(
+                  icon,
+                  size: 13,
+                  color: isSelected ? activeColor : MyAppTheme.textSecondaryColor,
+                ),
+                const SizedBox(width: 5),
+              ],
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                  color: isSelected ? activeColor : MyAppTheme.textSecondaryColor,
+                ),
+              ),
+            ],
+          ),
         ),
-      ],
+      ),
     );
   }
 
@@ -229,6 +433,7 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() {
       _sortOption = CapsuleSortOption.soonestUnlock;
       _emotionFilter = null;
+      _tabFilter = CapsuleTabFilter.all;
       _applyFilters();
     });
     SettingsService.setSortOption(_sortOption.name);
@@ -265,19 +470,18 @@ class _HomeScreenState extends State<HomeScreen> {
                   children: [
                     Center(
                       child: Container(
-                        width: 40,
+                        width: 36,
                         height: 4,
                         margin: const EdgeInsets.only(bottom: 20),
                         decoration: BoxDecoration(
-                          color: MyAppTheme.borderColor,
+                          color: MyAppTheme.borderLightColor,
                           borderRadius: BorderRadius.circular(2),
                         ),
                       ),
                     ),
                     Row(
                       children: [
-                        Icon(Icons.sort_rounded,
-                            color: theme.colorScheme.primary),
+                        Icon(Icons.sort_rounded, color: theme.colorScheme.primary, size: 20),
                         const SizedBox(width: 10),
                         Text('Sort by', style: theme.textTheme.titleMedium),
                       ],
@@ -292,14 +496,12 @@ class _HomeScreenState extends State<HomeScreen> {
                         onTap: () => updateSort(option),
                       );
                     }),
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 20),
                     Row(
                       children: [
-                        Icon(Icons.mood_rounded,
-                            color: theme.colorScheme.primary),
+                        Icon(Icons.mood_rounded, color: theme.colorScheme.primary, size: 20),
                         const SizedBox(width: 10),
-                        Text('Filter by emotion',
-                            style: theme.textTheme.titleMedium),
+                        Text('Filter by emotion', style: theme.textTheme.titleMedium),
                       ],
                     ),
                     const SizedBox(height: 12),
@@ -311,8 +513,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           label: const Text('All'),
                           selected: _emotionFilter == null,
                           onSelected: (_) => updateEmotion(null),
-                          selectedColor:
-                              theme.colorScheme.primary.withValues(alpha: 0.2),
+                          selectedColor: theme.colorScheme.primary.withValues(alpha: 0.18),
                           checkmarkColor: theme.colorScheme.primary,
                         ),
                         ...EmotionTag.values.map((emotion) {
@@ -320,17 +521,15 @@ class _HomeScreenState extends State<HomeScreen> {
                           return FilterChip(
                             avatar: Icon(
                               emotion.icon,
-                              size: 18,
+                              size: 16,
                               color: selected
                                   ? theme.colorScheme.primary
                                   : theme.iconTheme.color,
                             ),
                             label: Text(emotion.label),
                             selected: selected,
-                            onSelected: (_) =>
-                                updateEmotion(selected ? null : emotion),
-                            selectedColor: theme.colorScheme.primary
-                                .withValues(alpha: 0.2),
+                            onSelected: (_) => updateEmotion(selected ? null : emotion),
+                            selectedColor: theme.colorScheme.primary.withValues(alpha: 0.18),
                             checkmarkColor: theme.colorScheme.primary,
                           );
                         }),
@@ -371,18 +570,26 @@ class _HomeScreenState extends State<HomeScreen> {
                 ? EmptyState.emptyLottie
                 : null,
             title: hasNoCapsules
-                ? 'No capsules yet'
+                ? 'No active capsules'
                 : isSearching
-                ? 'No capsules found'
+                ? 'No capsules match search'
                 : 'All capsules played',
             subtitle: hasNoCapsules
-                ? 'Create your first voice capsule for the future'
+                ? 'Record your first voice message to unlock in the future'
                 : isSearching
                 ? 'Try adjusting your search or filters'
-                : 'Check "Played Capsules" to see opened messages',
-            actionLabel: isSearching ? 'Clear Filters' : null,
-            actionIcon: Icons.clear_all_rounded,
-            onAction: isSearching
+                : 'Listen to opened messages in the Played tab',
+            actionLabel: hasNoCapsules
+                ? 'Record a Capsule'
+                : isSearching
+                ? 'Clear Filters'
+                : null,
+            actionIcon: hasNoCapsules
+                ? Icons.mic_rounded
+                : Icons.clear_all_rounded,
+            onAction: hasNoCapsules
+                ? () => _openRecordingScreen()
+                : isSearching
                 ? () {
                     _searchController.clear();
                     _clearFilters();
@@ -397,10 +604,11 @@ class _HomeScreenState extends State<HomeScreen> {
     return ListView.builder(
       physics: const AlwaysScrollableScrollPhysics(),
       itemCount: _filteredCapsules.length,
+      padding: const EdgeInsets.only(bottom: 90),
       itemBuilder: (context, index) {
         final capsule = _filteredCapsules[index];
         return Padding(
-          padding: const EdgeInsets.only(bottom: 12),
+          padding: const EdgeInsets.only(bottom: 10),
           child: CapsuleCard(
             key: ValueKey(capsule.id),
             capsule: capsule,
@@ -419,8 +627,8 @@ class _HomeScreenState extends State<HomeScreen> {
     if (capsule.isLocked) {
       CapsuleActions.showSnackBar(
         context,
-        icon: Icons.lock_outline,
-        message: 'This capsule is still locked',
+        icon: Icons.lock_clock_rounded,
+        message: 'This capsule is still locked (${capsule.timeRemainingFormatted})',
         backgroundColor: MyAppTheme.warningColor,
       );
       return;
@@ -480,31 +688,44 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  Future<void> _openRecordingScreen() async {
+    final result = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(builder: (context) => const RecordingScreen()),
+    );
+
+    if (result == true && mounted) {
+      _loadCapsules();
+      _checkPendingNotifications();
+    }
+  }
+
   Widget _buildFloatingActionButton() {
     return Container(
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: MyAppTheme.primaryColor.withValues(alpha: 0.59),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
+            color: MyAppTheme.primaryColor.withValues(alpha: 0.35),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
           ),
         ],
       ),
-      child: FloatingActionButton(
-        onPressed: () async {
-          final result = await Navigator.push<bool>(
-            context,
-            MaterialPageRoute(builder: (context) => const RecordingScreen()),
-          );
-
-          if (result == true && mounted) {
-            _loadCapsules();
-          }
-        },
+      child: FloatingActionButton.extended(
+        onPressed: _openRecordingScreen,
         backgroundColor: MyAppTheme.primaryColor,
-        child: const Icon(Icons.add, size: 32, color: Colors.white),
+        elevation: 0,
+        icon: const Icon(Icons.mic_rounded, size: 22, color: Colors.white),
+        label: const Text(
+          'Record Capsule',
+          style: TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.w600,
+            fontSize: 14,
+            letterSpacing: 0.2,
+          ),
+        ),
       ),
     );
   }
@@ -531,18 +752,18 @@ class _OptionTile extends StatelessWidget {
       child: Material(
         color: selected
             ? theme.colorScheme.primary.withValues(alpha: 0.12)
-            : theme.scaffoldBackgroundColor,
+            : MyAppTheme.surfaceColor,
         borderRadius: BorderRadius.circular(14),
         child: InkWell(
           borderRadius: BorderRadius.circular(14),
           onTap: onTap,
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
             child: Row(
               children: [
                 Icon(
                   icon,
-                  size: 20,
+                  size: 19,
                   color: selected
                       ? theme.colorScheme.primary
                       : theme.iconTheme.color,
@@ -561,7 +782,7 @@ class _OptionTile extends StatelessWidget {
                 if (selected)
                   Icon(
                     Icons.check_rounded,
-                    size: 20,
+                    size: 19,
                     color: theme.colorScheme.primary,
                   ),
               ],

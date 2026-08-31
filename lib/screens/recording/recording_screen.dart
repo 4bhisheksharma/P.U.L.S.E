@@ -1,6 +1,9 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:pulse/models/models.dart';
@@ -34,7 +37,7 @@ class _RecordingScreenState extends State<RecordingScreen> {
   EmotionTag? _selectedEmotion;
 
   StreamSubscription<Amplitude>? _amplitudeSub;
-  static const int _waveformBars = 48;
+  static const int _waveformBars = 42;
   final List<double> _amplitudes = List<double>.filled(
     _waveformBars,
     0.0,
@@ -46,6 +49,9 @@ class _RecordingScreenState extends State<RecordingScreen> {
   @override
   void initState() {
     super.initState();
+    // Default preset: tomorrow at the same hour
+    final now = DateTime.now();
+    _unlockDate = now.add(const Duration(days: 1));
   }
 
   @override
@@ -55,13 +61,20 @@ class _RecordingScreenState extends State<RecordingScreen> {
     _audioRecorder.dispose();
     _titleController.dispose();
     _descriptionController.dispose();
+
+    // If user left without saving, clean up temporary audio file
+    if (!_isSaving && _audioPath != null) {
+      final path = _audioPath!;
+      Future.microtask(() => CapsuleDatabase.deleteAudioFileAt(path));
+    }
+
     super.dispose();
   }
 
   void _startAmplitudeMonitoring() {
     _amplitudeSub?.cancel();
     _amplitudeSub = _audioRecorder
-        .onAmplitudeChanged(const Duration(milliseconds: 90))
+        .onAmplitudeChanged(const Duration(milliseconds: 80))
         .listen((amp) {
           if (!mounted || _isPaused) return;
           setState(() {
@@ -71,12 +84,12 @@ class _RecordingScreenState extends State<RecordingScreen> {
         });
   }
 
-  /// Converts a dBFS reading (roughly -45..0) into a 0..1 bar height.
+  /// Converts a dBFS reading into a 0..1 bar height.
   double _normalizeAmplitude(double db) {
     const minDb = -45.0;
-    if (db.isNaN || db.isInfinite) return 0.05;
+    if (db.isNaN || db.isInfinite) return 0.06;
     final clamped = db.clamp(minDb, 0.0);
-    return ((clamped - minDb) / -minDb).clamp(0.05, 1.0);
+    return ((clamped - minDb) / -minDb).clamp(0.06, 1.0);
   }
 
   void _resetWaveform() {
@@ -98,12 +111,11 @@ class _RecordingScreenState extends State<RecordingScreen> {
     await showDialog<void>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Microphone access needed'),
+        title: const Text('Microphone Access Needed'),
         content: Text(
           openSettings
-              ? 'PULSE needs microphone access to record voice capsules. '
-                  'Enable it in Settings.'
-              : 'Microphone permission was denied. Allow access to record.',
+              ? 'P.U.L.S.E needs microphone permission to record voice capsules. Please enable it in Settings.'
+              : 'Microphone permission was denied. Allow access to start recording.',
         ),
         actions: [
           TextButton(
@@ -111,7 +123,7 @@ class _RecordingScreenState extends State<RecordingScreen> {
             child: const Text('Cancel'),
           ),
           if (openSettings)
-            TextButton(
+            ElevatedButton(
               onPressed: () {
                 Navigator.pop(context);
                 openAppSettings();
@@ -125,6 +137,7 @@ class _RecordingScreenState extends State<RecordingScreen> {
   }
 
   Future<void> _startRecording() async {
+    HapticFeedback.heavyImpact();
     try {
       if (await _ensureMicrophonePermission()) {
         final directory = await getApplicationDocumentsDirectory();
@@ -143,6 +156,7 @@ class _RecordingScreenState extends State<RecordingScreen> {
         setState(() {
           _isRecording = true;
           _isPaused = false;
+          _hasRecording = false;
           _recordDuration = 0;
           _audioPath = filePath;
           _resetWaveform();
@@ -157,22 +171,36 @@ class _RecordingScreenState extends State<RecordingScreen> {
   }
 
   Future<void> _pauseRecording() async {
+    HapticFeedback.mediumImpact();
     await _audioRecorder.pause();
     _timer?.cancel();
     setState(() => _isPaused = true);
   }
 
   Future<void> _resumeRecording() async {
+    HapticFeedback.mediumImpact();
     await _audioRecorder.resume();
     _startTimer();
     setState(() => _isPaused = false);
   }
 
   Future<void> _stopRecording() async {
+    HapticFeedback.heavyImpact();
     _timer?.cancel();
     await _amplitudeSub?.cancel();
     _amplitudeSub = null;
     final path = await _audioRecorder.stop();
+
+    if (_recordDuration < 1) {
+      _showError('Recording was too short');
+      setState(() {
+        _isRecording = false;
+        _isPaused = false;
+        _hasRecording = false;
+      });
+      if (path != null) await CapsuleDatabase.deleteAudioFileAt(path);
+      return;
+    }
 
     setState(() {
       _isRecording = false;
@@ -195,13 +223,13 @@ class _RecordingScreenState extends State<RecordingScreen> {
   }
 
   Future<void> _saveCapsule() async {
-    if (_audioPath == null) {
-      _showError('No recording found');
+    if (_audioPath == null || !_hasRecording) {
+      _showError('Please record your voice message first');
       return;
     }
 
     if (_titleController.text.trim().isEmpty) {
-      _showError('Please enter a title');
+      _showError('Please enter a title for your capsule');
       return;
     }
 
@@ -210,7 +238,7 @@ class _RecordingScreenState extends State<RecordingScreen> {
       return;
     }
 
-    if (_unlockDate!.isBefore(DateTime.now())) {
+    if (!_unlockDate!.isAfter(DateTime.now())) {
       _showError('Unlock date must be in the future');
       return;
     }
@@ -218,6 +246,14 @@ class _RecordingScreenState extends State<RecordingScreen> {
     setState(() => _isSaving = true);
 
     try {
+      int? fileSizeBytes;
+      try {
+        final file = File(_audioPath!);
+        if (await file.exists()) {
+          fileSizeBytes = await file.length();
+        }
+      } catch (_) {}
+
       final capsule = VoiceCapsule(
         id: const Uuid().v4(),
         title: _titleController.text.trim(),
@@ -229,10 +265,12 @@ class _RecordingScreenState extends State<RecordingScreen> {
         description: _descriptionController.text.trim().isEmpty
             ? null
             : _descriptionController.text.trim(),
+        fileSizeBytes: fileSizeBytes,
       );
 
       await CapsuleDatabase.addCapsule(capsule);
 
+      // Schedule notification
       final notificationsScheduled =
           await NotificationService().scheduleForCapsule(capsule);
 
@@ -242,11 +280,19 @@ class _RecordingScreenState extends State<RecordingScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: const Text(
-              'Capsule saved, but unlock alerts could not be scheduled. '
-              'In Settings, allow Notifications and Alarms & reminders for PULSE.',
+              'Capsule saved! Tip: Enable notifications in app settings to receive unlock alerts.',
             ),
             backgroundColor: MyAppTheme.warningColor,
-            duration: const Duration(seconds: 5),
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              '✨ Capsule "${capsule.title}" locked until ${DateFormat.yMMMd().format(capsule.unlockDate)}',
+            ),
+            backgroundColor: MyAppTheme.successColor,
           ),
         );
       }
@@ -261,23 +307,27 @@ class _RecordingScreenState extends State<RecordingScreen> {
 
   void _showError(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), backgroundColor: MyAppTheme.errorColor),
+      SnackBar(
+        content: Text(message),
+        backgroundColor: MyAppTheme.errorColor,
+      ),
     );
   }
 
   Future<void> _selectUnlockDate() async {
     final now = DateTime.now();
-    final tomorrow = DateTime(now.year, now.month, now.day + 1);
+    final initial = _unlockDate ?? now.add(const Duration(days: 1));
+
     final DateTime? pickedDate = await showDatePicker(
       context: context,
-      initialDate: tomorrow,
+      initialDate: initial.isAfter(now) ? initial : now.add(const Duration(days: 1)),
       firstDate: now,
       lastDate: now.add(const Duration(days: 3650)), // ~10 years
       builder: (context, child) {
         return Theme(
           data: Theme.of(context).copyWith(
             colorScheme: ColorScheme.dark(
-              primary: Theme.of(context).colorScheme.primary,
+              primary: MyAppTheme.primaryColor,
               surface: MyAppTheme.surfaceColor,
             ),
           ),
@@ -289,12 +339,12 @@ class _RecordingScreenState extends State<RecordingScreen> {
     if (pickedDate != null && mounted) {
       final TimeOfDay? pickedTime = await showTimePicker(
         context: context,
-        initialTime: TimeOfDay.now(),
+        initialTime: TimeOfDay.fromDateTime(initial),
         builder: (context, child) {
           return Theme(
             data: Theme.of(context).copyWith(
               colorScheme: ColorScheme.dark(
-                primary: Theme.of(context).colorScheme.primary,
+                primary: MyAppTheme.primaryColor,
                 surface: MyAppTheme.surfaceColor,
               ),
             ),
@@ -332,22 +382,31 @@ class _RecordingScreenState extends State<RecordingScreen> {
         title: const Text('Record Capsule'),
         actions: [
           if (_hasRecording && !_isRecording)
-            TextButton(
-              onPressed: _isSaving ? null : _saveCapsule,
+            Padding(
+              padding: const EdgeInsets.only(right: 12),
               child: _isSaving
-                  ? SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: theme.colorScheme.primary,
+                  ? Center(
+                      child: SizedBox(
+                        width: 22,
+                        height: 22,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: MyAppTheme.primaryColor,
+                        ),
                       ),
                     )
-                  : const Text(
-                      'SAVE',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
+                  : ElevatedButton.icon(
+                      onPressed: _saveCapsule,
+                      icon: const Icon(Icons.check_rounded, size: 18),
+                      label: const Text('Lock & Save'),
+                      style: ElevatedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 8,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                       ),
                     ),
             ),
@@ -355,46 +414,42 @@ class _RecordingScreenState extends State<RecordingScreen> {
       ),
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(20),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // Recording status
+              // Recording Studio Section
               _buildRecordingSection(theme),
-              const SizedBox(height: 32),
+              const SizedBox(height: 24),
 
               // Title input
               _buildTextField(
                 controller: _titleController,
                 label: 'Capsule Title',
-                hint: 'My Future Self',
-                icon: Icons.title,
+                hint: 'e.g. Note to my future self, Goals for 2027...',
+                icon: Icons.title_rounded,
                 enabled: !_isRecording,
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 14),
 
               // Description input
               _buildTextField(
                 controller: _descriptionController,
-                label: 'Description (Optional)',
-                hint: 'What is this capsule about?',
-                icon: Icons.description,
-                maxLines: 3,
+                label: 'Description / Note (Optional)',
+                hint: 'Write context, memories, or why you made this...',
+                icon: Icons.notes_rounded,
+                maxLines: 2,
                 enabled: !_isRecording,
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 18),
 
               // Emotion selector
               _buildEmotionSelector(theme),
-              const SizedBox(height: 16),
+              const SizedBox(height: 18),
 
-              // Unlock date selector
-              _buildUnlockDateSelector(theme),
-              const SizedBox(height: 16),
-
-              // Quick presets
-              if (!_isRecording) _buildQuickPresets(theme),
-              const SizedBox(height: 32),
+              // Unlock date presets & custom picker
+              _buildUnlockDateSection(theme),
+              const SizedBox(height: 40),
             ],
           ),
         ),
@@ -404,15 +459,15 @@ class _RecordingScreenState extends State<RecordingScreen> {
 
   Widget _buildRecordingSection(ThemeData theme) {
     return Container(
-      padding: const EdgeInsets.all(32),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
       decoration: BoxDecoration(
-        color: theme.cardColor,
-        borderRadius: BorderRadius.circular(24),
+        color: MyAppTheme.cardColor,
+        borderRadius: BorderRadius.circular(22),
         border: Border.all(
           color: _isRecording
-              ? theme.colorScheme.primary
-              : const Color(0xFF2D2D3A),
-          width: 2,
+              ? MyAppTheme.primaryColor.withValues(alpha: 0.6)
+              : MyAppTheme.borderColor,
+          width: 1.2,
         ),
       ),
       child: Column(
@@ -421,61 +476,69 @@ class _RecordingScreenState extends State<RecordingScreen> {
           Text(
             _formatDuration(_recordDuration),
             style: theme.textTheme.headlineLarge?.copyWith(
-              fontSize: 48,
-              fontWeight: FontWeight.bold,
+              fontSize: 44,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 1.5,
               color: _isRecording
-                  ? theme.colorScheme.primary
-                  : theme.textTheme.headlineLarge?.color,
+                  ? MyAppTheme.primaryColor
+                  : MyAppTheme.textColor,
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 4),
           Text(
             _isRecording
-                ? _isPaused
-                      ? 'Paused'
-                      : 'Recording...'
+                ? (_isPaused ? 'Recording Paused' : 'Listening...')
                 : _hasRecording
-                ? 'Recording Complete'
-                : 'Ready to Record',
-            style: theme.textTheme.bodyLarge?.copyWith(
-              color: theme.textTheme.bodyMedium?.color,
+                ? 'Recording Ready (${_formatDuration(_recordDuration)})'
+                : 'Tap microphone to start recording',
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: _isRecording
+                  ? MyAppTheme.primaryColor
+                  : MyAppTheme.textSecondaryColor,
+              fontWeight: FontWeight.w500,
             ),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 16),
 
           // Live waveform visualization
-          if (_isRecording)
+          if (_isRecording) ...[
             RecordingWaveform(
               amplitudes: _amplitudes,
-              color: theme.colorScheme.primary,
+              color: MyAppTheme.primaryColor,
               isActive: !_isPaused,
+              height: 56,
             ),
-          if (_isRecording) const SizedBox(height: 20),
-          const SizedBox(height: 4),
+            const SizedBox(height: 16),
+          ],
 
-          // Recording controls
+          // Controls
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               if (_isRecording) ...[
                 // Pause/Resume button
-                _buildControlButton(
-                  icon: _isPaused ? Icons.play_arrow : Icons.pause,
-                  onPressed: _isPaused ? _resumeRecording : _pauseRecording,
-                  color: Colors.orange,
+                _buildCircleControl(
+                  icon: _isPaused ? Icons.play_arrow_rounded : Icons.pause_rounded,
+                  label: _isPaused ? 'Resume' : 'Pause',
+                  color: MyAppTheme.warningColor,
+                  onTap: _isPaused ? _resumeRecording : _pauseRecording,
                 ),
-                const SizedBox(width: 16),
+                const SizedBox(width: 24),
                 // Stop button
-                _buildControlButton(
-                  icon: Icons.stop,
-                  onPressed: _stopRecording,
-                  color: Colors.red,
+                _buildCircleControl(
+                  icon: Icons.stop_rounded,
+                  label: 'Done',
+                  color: MyAppTheme.errorColor,
+                  onTap: _stopRecording,
+                  isPrimary: true,
                 ),
               ] else if (_hasRecording) ...[
                 // Re-record button
-                _buildControlButton(
-                  icon: Icons.refresh,
-                  onPressed: () async {
+                _buildCircleControl(
+                  icon: Icons.refresh_rounded,
+                  label: 'Re-record',
+                  color: MyAppTheme.warningColor,
+                  onTap: () async {
                     final previousPath = _audioPath;
                     setState(() {
                       _hasRecording = false;
@@ -487,34 +550,48 @@ class _RecordingScreenState extends State<RecordingScreen> {
                       await CapsuleDatabase.deleteAudioFileAt(previousPath);
                     }
                   },
-                  color: Colors.orange,
                 ),
               ] else ...[
                 // Start recording button
-                _buildControlButton(
-                  icon: Icons.fiber_manual_record,
-                  onPressed: _startRecording,
-                  color: theme.colorScheme.primary,
-                  size: 80,
+                GestureDetector(
+                  onTap: _startRecording,
+                  child: Container(
+                    width: 72,
+                    height: 72,
+                    decoration: BoxDecoration(
+                      color: MyAppTheme.primaryColor,
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: MyAppTheme.primaryColor.withValues(alpha: 0.38),
+                          blurRadius: 20,
+                          offset: const Offset(0, 6),
+                        ),
+                      ],
+                    ),
+                    child: const Icon(
+                      Icons.mic_rounded,
+                      color: Colors.white,
+                      size: 36,
+                    ),
+                  ),
                 ),
               ],
             ],
           ),
 
-          // Progress indicator
           if (_isRecording) ...[
-            const SizedBox(height: 16),
-            LinearProgressIndicator(
-              value: _recordDuration / maxDuration,
-              backgroundColor: theme.colorScheme.primary.withValues(alpha: 0.1),
-              valueColor: AlwaysStoppedAnimation<Color>(
-                theme.colorScheme.primary,
+            const SizedBox(height: 14),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: LinearProgressIndicator(
+                value: _recordDuration / maxDuration,
+                minHeight: 4,
+                backgroundColor: MyAppTheme.surfaceColor,
+                valueColor: AlwaysStoppedAnimation<Color>(
+                  MyAppTheme.primaryColor,
+                ),
               ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              '${_recordDuration}s / ${maxDuration}s',
-              style: theme.textTheme.bodySmall,
             ),
           ],
         ],
@@ -522,28 +599,47 @@ class _RecordingScreenState extends State<RecordingScreen> {
     );
   }
 
-  Widget _buildControlButton({
+  Widget _buildCircleControl({
     required IconData icon,
-    required VoidCallback onPressed,
+    required String label,
     required Color color,
-    double size = 64,
+    required VoidCallback onTap,
+    bool isPrimary = false,
   }) {
-    return Material(
-      color: color.withValues(alpha: 0.15),
-      borderRadius: BorderRadius.circular(size / 2),
-      child: InkWell(
-        onTap: onPressed,
-        borderRadius: BorderRadius.circular(size / 2),
-        child: Container(
-          width: size,
-          height: size,
-          decoration: BoxDecoration(
-            border: Border.all(color: color, width: 2),
-            borderRadius: BorderRadius.circular(size / 2),
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Material(
+          color: isPrimary ? color : color.withValues(alpha: 0.15),
+          shape: const CircleBorder(),
+          child: InkWell(
+            customBorder: const CircleBorder(),
+            onTap: onTap,
+            child: Container(
+              width: 58,
+              height: 58,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(color: color, width: 1.5),
+              ),
+              child: Icon(
+                icon,
+                color: isPrimary ? Colors.white : color,
+                size: 28,
+              ),
+            ),
           ),
-          child: Icon(icon, color: color, size: size * 0.5),
         ),
-      ),
+        const SizedBox(height: 6),
+        Text(
+          label,
+          style: TextStyle(
+            color: color,
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ],
     );
   }
 
@@ -555,17 +651,29 @@ class _RecordingScreenState extends State<RecordingScreen> {
     int maxLines = 1,
     bool enabled = true,
   }) {
-    return TextField(
-      controller: controller,
-      enabled: enabled,
-      maxLines: maxLines,
-      style: Theme.of(context).textTheme.bodyLarge,
-      decoration: InputDecoration(
-        labelText: label,
-        hintText: hint,
-        prefixIcon: Icon(icon),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
-      ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            color: Color(0xFFC0C0D4),
+          ),
+        ),
+        const SizedBox(height: 6),
+        TextField(
+          controller: controller,
+          enabled: enabled,
+          maxLines: maxLines,
+          style: Theme.of(context).textTheme.bodyLarge,
+          decoration: InputDecoration(
+            hintText: hint,
+            prefixIcon: Icon(icon, size: 20),
+          ),
+        ),
+      ],
     );
   }
 
@@ -573,13 +681,15 @@ class _RecordingScreenState extends State<RecordingScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'How are you feeling?',
-          style: theme.textTheme.bodyLarge?.copyWith(
+        const Text(
+          'How are you feeling right now?',
+          style: TextStyle(
+            fontSize: 13,
             fontWeight: FontWeight.w600,
+            color: Color(0xFFC0C0D4),
           ),
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 8),
         Wrap(
           spacing: 8,
           runSpacing: 8,
@@ -588,22 +698,21 @@ class _RecordingScreenState extends State<RecordingScreen> {
             return FilterChip(
               avatar: Icon(
                 emotion.icon,
-                size: 18,
+                size: 16,
                 color: isSelected
-                    ? theme.colorScheme.primary
-                    : theme.iconTheme.color,
+                    ? MyAppTheme.primaryColor
+                    : MyAppTheme.textSecondaryColor,
               ),
               label: Text(emotion.displayName),
               selected: isSelected,
               onSelected: _isRecording
                   ? null
                   : (selected) {
+                      HapticFeedback.selectionClick();
                       setState(() {
                         _selectedEmotion = selected ? emotion : null;
                       });
                     },
-              selectedColor: theme.colorScheme.primary.withValues(alpha: 0.2),
-              checkmarkColor: theme.colorScheme.primary,
             );
           }).toList(),
         ),
@@ -611,65 +720,10 @@ class _RecordingScreenState extends State<RecordingScreen> {
     );
   }
 
-  Widget _buildUnlockDateSelector(ThemeData theme) {
-    return InkWell(
-      onTap: _isRecording ? null : _selectUnlockDate,
-      borderRadius: BorderRadius.circular(16),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: theme.cardColor,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: _unlockDate != null
-                ? theme.colorScheme.primary
-                : const Color(0xFF2D2D3A),
-            width: 1.5,
-          ),
-        ),
-        child: Row(
-          children: [
-            Icon(
-              Icons.lock_clock,
-              color: _unlockDate != null
-                  ? theme.colorScheme.primary
-                  : theme.iconTheme.color,
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Unlock Date', style: theme.textTheme.bodySmall),
-                  const SizedBox(height: 4),
-                  Text(
-                    _unlockDate != null
-                        ? '${_unlockDate!.day}/${_unlockDate!.month}/${_unlockDate!.year} at ${_unlockDate!.hour}:${_unlockDate!.minute.toString().padLeft(2, '0')}'
-                        : 'Select when to unlock this capsule',
-                    style: theme.textTheme.bodyLarge?.copyWith(
-                      color: _unlockDate != null
-                          ? theme.textTheme.bodyLarge?.color
-                          : theme.textTheme.bodyMedium?.color,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Icon(
-              Icons.chevron_right,
-              color: theme.iconTheme.color?.withValues(alpha: 0.5),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildQuickPresets(ThemeData theme) {
+  Widget _buildUnlockDateSection(ThemeData theme) {
     final presets = [
-      {'label': '1 Minute', 'duration': const Duration(minutes: 1)},
       {'label': '1 Hour', 'duration': const Duration(hours: 1)},
-      {'label': '1 Day', 'duration': const Duration(days: 1)},
+      {'label': 'Tomorrow', 'duration': const Duration(days: 1)},
       {'label': '1 Week', 'duration': const Duration(days: 7)},
       {'label': '1 Month', 'duration': const Duration(days: 30)},
       {'label': '1 Year', 'duration': const Duration(days: 365)},
@@ -678,28 +732,112 @@ class _RecordingScreenState extends State<RecordingScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'Quick Presets',
-          style: theme.textTheme.bodyLarge?.copyWith(
-            fontWeight: FontWeight.w600,
-          ),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text(
+              'Unlock Date & Time',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFFC0C0D4),
+              ),
+            ),
+            TextButton.icon(
+              onPressed: _isRecording ? null : _selectUnlockDate,
+              icon: const Icon(Icons.edit_calendar_rounded, size: 16),
+              label: const Text('Custom Picker'),
+            ),
+          ],
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 6),
+
+        // Quick presets
         Wrap(
           spacing: 8,
           runSpacing: 8,
           children: presets.map((preset) {
             return OutlinedButton(
-              onPressed: () {
-                setState(() {
-                  _unlockDate = DateTime.now().add(
-                    preset['duration'] as Duration,
-                  );
-                });
-              },
+              onPressed: _isRecording
+                  ? null
+                  : () {
+                      HapticFeedback.selectionClick();
+                      setState(() {
+                        _unlockDate = DateTime.now().add(
+                          preset['duration'] as Duration,
+                        );
+                      });
+                    },
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              ),
               child: Text(preset['label'] as String),
             );
           }).toList(),
+        ),
+        const SizedBox(height: 12),
+
+        // Selected Date Display Card
+        InkWell(
+          onTap: _isRecording ? null : _selectUnlockDate,
+          borderRadius: BorderRadius.circular(16),
+          child: Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: MyAppTheme.surfaceColor,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: _unlockDate != null
+                    ? MyAppTheme.primaryColor.withValues(alpha: 0.5)
+                    : MyAppTheme.borderColor,
+                width: 1,
+              ),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: MyAppTheme.primaryColor.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(
+                    Icons.lock_clock_rounded,
+                    color: MyAppTheme.primaryColor,
+                    size: 22,
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Unlock Schedule',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: MyAppTheme.textSecondaryColor,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        _unlockDate != null
+                            ? DateFormat.yMMMMEEEEd().add_jm().format(_unlockDate!)
+                            : 'Select unlock time',
+                        style: theme.textTheme.bodyLarge?.copyWith(
+                          fontWeight: FontWeight.w600,
+                          color: MyAppTheme.textColor,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(
+                  Icons.chevron_right_rounded,
+                  color: MyAppTheme.textSecondaryColor,
+                ),
+              ],
+            ),
+          ),
         ),
       ],
     );

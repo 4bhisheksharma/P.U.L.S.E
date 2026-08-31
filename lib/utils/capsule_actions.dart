@@ -28,8 +28,9 @@ class CapsuleActions {
       if (context.mounted) {
         showSnackBar(
           context,
-          icon: Icons.edit_outlined,
+          icon: Icons.check_circle_outline_rounded,
           message: 'Renamed to "$newTitle"',
+          backgroundColor: MyAppTheme.successColor,
         );
       }
     } else if (newTitle != null &&
@@ -37,7 +38,7 @@ class CapsuleActions {
         context.mounted) {
       showSnackBar(
         context,
-        icon: Icons.info_outline,
+        icon: Icons.info_outline_rounded,
         message: 'Title unchanged',
       );
     }
@@ -50,8 +51,8 @@ class CapsuleActions {
     if (capsule.isLocked) {
       showSnackBar(
         context,
-        icon: Icons.lock_outline,
-        message: 'Cannot share a locked capsule',
+        icon: Icons.lock_outline_rounded,
+        message: 'Cannot share a locked capsule until it unlocks',
         backgroundColor: MyAppTheme.warningColor,
       );
       return;
@@ -62,8 +63,8 @@ class CapsuleActions {
       if (context.mounted) {
         showSnackBar(
           context,
-          icon: Icons.error_outline,
-          message: 'Audio file not found',
+          icon: Icons.error_outline_rounded,
+          message: 'Audio file was not found on this device',
           backgroundColor: MyAppTheme.errorColor,
         );
       }
@@ -92,69 +93,26 @@ class CapsuleActions {
       SnackBar(
         content: Row(
           children: [
-            Icon(icon, color: Colors.white, size: 20),
-            const SizedBox(width: 12),
-            Expanded(child: Text(message)),
+            Icon(icon, color: Colors.white, size: 18),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                message,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 13.5,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
           ],
         ),
-        backgroundColor: backgroundColor,
+        backgroundColor: backgroundColor ?? MyAppTheme.surfaceColor,
         action: action,
-      ),
-    );
-  }
-
-  static Future<void> showStatisticsSheet(BuildContext context) async {
-    final counts = CapsuleDatabase.getCapsuleCountByState();
-    final total = CapsuleDatabase.count;
-    final theme = Theme.of(context);
-
-    await showModalBottomSheet<void>(
-      context: context,
-      builder: (context) => Padding(
-        padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(Icons.bar_chart_rounded, color: theme.colorScheme.primary),
-                const SizedBox(width: 12),
-                Text(
-                  'Capsule Statistics',
-                  style: theme.textTheme.headlineSmall,
-                ),
-              ],
-            ),
-            const SizedBox(height: 24),
-            _StatRow(
-              icon: Icons.inventory_2_outlined,
-              label: 'Total Capsules',
-              value: total.toString(),
-              color: theme.colorScheme.primary,
-            ),
-            const SizedBox(height: 12),
-            _StatRow(
-              icon: Icons.lock_outline,
-              label: 'Locked',
-              value: (counts[CapsuleState.locked] ?? 0).toString(),
-              color: theme.colorScheme.primary,
-            ),
-            const SizedBox(height: 12),
-            _StatRow(
-              icon: Icons.lock_open_outlined,
-              label: 'Unlockable',
-              value: (counts[CapsuleState.unlockable] ?? 0).toString(),
-              color: MyAppTheme.warningColor,
-            ),
-            const SizedBox(height: 12),
-            _StatRow(
-              icon: Icons.check_circle_outline,
-              label: 'Opened',
-              value: (counts[CapsuleState.opened] ?? 0).toString(),
-              color: MyAppTheme.successColor,
-            ),
-          ],
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: BorderSide(color: MyAppTheme.borderColor, width: 1),
         ),
       ),
     );
@@ -217,49 +175,6 @@ class _RenameDialogState extends State<_RenameDialog> {
           child: const Text('Save'),
         ),
       ],
-    );
-  }
-}
-
-class _StatRow extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final String value;
-  final Color color;
-
-  const _StatRow({
-    required this.icon,
-    required this.label,
-    required this.value,
-    required this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      decoration: BoxDecoration(
-        color: theme.cardColor,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Row(
-        children: [
-          Icon(icon, color: color, size: 22),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(label, style: theme.textTheme.bodyLarge),
-          ),
-          Text(
-            value,
-            style: theme.textTheme.titleMedium?.copyWith(
-              color: color,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ],
-      ),
     );
   }
 }

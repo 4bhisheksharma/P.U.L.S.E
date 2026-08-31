@@ -1,9 +1,6 @@
 import 'package:flutter/material.dart';
 
 /// Animated waveform that visualizes live microphone amplitude while recording.
-///
-/// [amplitudes] is an ordered list of normalized values (0.0 - 1.0), oldest
-/// first, newest last. Bars scroll in from the right as new samples arrive.
 class RecordingWaveform extends StatelessWidget {
   final List<double> amplitudes;
   final Color color;
@@ -15,7 +12,7 @@ class RecordingWaveform extends StatelessWidget {
     required this.amplitudes,
     required this.color,
     this.isActive = true,
-    this.height = 72,
+    this.height = 68,
   });
 
   @override
@@ -51,17 +48,17 @@ class _WaveformPainter extends CustomPainter {
 
     final count = amplitudes.length;
     final slot = size.width / count;
-    final barWidth = slot * 0.55;
+    final barWidth = (slot * 0.52).clamp(2.5, 6.0);
     final radius = Radius.circular(barWidth / 2);
     final centerY = size.height / 2;
-    final maxBar = size.height * 0.9;
+    final maxBar = size.height * 0.92;
 
     for (var i = 0; i < count; i++) {
       final amp = amplitudes[i].clamp(0.0, 1.0);
-      final barHeight = (amp * maxBar).clamp(3.0, maxBar);
+      final barHeight = (amp * maxBar).clamp(4.0, maxBar);
 
-      // Newer bars (towards the right) are more opaque for a "live" feel.
-      final freshness = isActive ? (0.35 + (i / count) * 0.65) : 0.4;
+      // Newer bars towards the right are more vibrant
+      final freshness = isActive ? (0.3 + (i / count) * 0.7) : 0.35;
       final paint = Paint()
         ..color = color.withValues(alpha: freshness)
         ..style = PaintingStyle.fill;

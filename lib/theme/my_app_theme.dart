@@ -1,28 +1,32 @@
 import 'package:flutter/material.dart';
 
 class MyAppTheme {
-  // Color constants for dark theme
+  // Ultra-refined, modern minimalist dark theme palette
   static const Color _darkPrimary = Color(0xFF7C73FF);
-  static const Color _darkSecondary = Color(0xFF9B8FFF);
-  static const Color _darkBackground = Color(0xFF0F0F14);
-  static const Color _darkSurface = Color(0xFF1A1A24);
-  static const Color _darkCard = Color(0xFF212130);
-  static const Color _darkBorder = Color(0xFF2D2D3A);
-  static const Color _darkText = Color(0xFFE8E8F0);
-  static const Color _darkTextSecondary = Color(0xFFB0B0C0);
-  static const Color _darkError = Color(0xFFFF6B6B);
-  static const Color _darkWarning = Color(0xFFFF9F43);
-  static const Color _darkSuccess = Color(0xFF4CAF50);
+  static const Color _darkSecondary = Color(0xFFA399FF);
+  static const Color _darkBackground = Color(0xFF0A0A10);
+  static const Color _darkSurface = Color(0xFF14141E);
+  static const Color _darkCard = Color(0xFF1A1A28);
+  static const Color _darkBorder = Color(0xFF26263A);
+  static const Color _darkBorderLight = Color(0xFF32324C);
+  static const Color _darkText = Color(0xFFF1F1F6);
+  static const Color _darkTextSecondary = Color(0xFF9E9EB2);
+  static const Color _darkTextMuted = Color(0xFF6B6B80);
+  static const Color _darkError = Color(0xFFFF5C5C);
+  static const Color _darkWarning = Color(0xFFF59E0B);
+  static const Color _darkSuccess = Color(0xFF10B981);
 
-  // Semantic color getters for easy access throughout the app
+  // Semantic color getters
   static Color get primaryColor => _darkPrimary;
   static Color get secondaryColor => _darkSecondary;
   static Color get backgroundColor => _darkBackground;
   static Color get surfaceColor => _darkSurface;
   static Color get cardColor => _darkCard;
   static Color get borderColor => _darkBorder;
+  static Color get borderLightColor => _darkBorderLight;
   static Color get textColor => _darkText;
   static Color get textSecondaryColor => _darkTextSecondary;
+  static Color get textMutedColor => _darkTextMuted;
   static Color get errorColor => _darkError;
   static Color get warningColor => _darkWarning;
   static Color get successColor => _darkSuccess;
@@ -33,13 +37,15 @@ class MyAppTheme {
         fontSize: 32,
         fontWeight: FontWeight.w700,
         color: _darkText,
-        letterSpacing: -0.5,
+        letterSpacing: -0.8,
+        height: 1.2,
       ),
       headlineMedium: TextStyle(
         fontSize: 24,
         fontWeight: FontWeight.w600,
         color: _darkText,
         letterSpacing: -0.5,
+        height: 1.25,
       ),
       headlineSmall: TextStyle(
         fontSize: 20,
@@ -51,19 +57,20 @@ class MyAppTheme {
         fontSize: 18,
         fontWeight: FontWeight.w600,
         color: _darkText,
+        letterSpacing: -0.2,
       ),
       titleMedium: TextStyle(
-        fontSize: 16,
+        fontSize: 15,
         fontWeight: FontWeight.w600,
         color: _darkText,
       ),
       bodyLarge: TextStyle(
-        fontSize: 16,
+        fontSize: 15,
         fontWeight: FontWeight.w500,
         color: _darkText,
       ),
       bodyMedium: TextStyle(
-        fontSize: 14,
+        fontSize: 13.5,
         fontWeight: FontWeight.w400,
         color: _darkTextSecondary,
       ),
@@ -73,9 +80,10 @@ class MyAppTheme {
         color: _darkTextSecondary,
       ),
       labelLarge: TextStyle(
-        fontSize: 16,
+        fontSize: 15,
         fontWeight: FontWeight.w600,
         color: Colors.white,
+        letterSpacing: 0.2,
       ),
     );
   }
@@ -106,7 +114,8 @@ class MyAppTheme {
         backgroundColor: _darkBackground,
         elevation: 0,
         scrolledUnderElevation: 0,
-        iconTheme: const IconThemeData(color: _darkText),
+        centerTitle: false,
+        iconTheme: const IconThemeData(color: _darkText, size: 22),
         titleTextStyle: textTheme.titleLarge,
       ),
 
@@ -114,30 +123,51 @@ class MyAppTheme {
         style: ElevatedButton.styleFrom(
           backgroundColor: _darkPrimary,
           foregroundColor: Colors.white,
+          elevation: 0,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(14),
           ),
-          padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
-          elevation: 4,
-          shadowColor: _darkPrimary.withValues(alpha: 0.59),
+          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 22),
+          textStyle: const TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.w600,
+            letterSpacing: 0.2,
+          ),
         ),
       ),
 
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
-          foregroundColor: _darkPrimary,
-          side: const BorderSide(color: _darkBorder, width: 1.5),
+          foregroundColor: _darkText,
+          side: const BorderSide(color: _darkBorder, width: 1.2),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(14),
           ),
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          textStyle: const TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ),
+
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(
+          foregroundColor: _darkPrimary,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+          textStyle: const TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+          ),
         ),
       ),
 
       floatingActionButtonTheme: FloatingActionButtonThemeData(
         backgroundColor: _darkPrimary,
         foregroundColor: Colors.white,
-        elevation: 6,
+        elevation: 4,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
       ),
 
@@ -145,7 +175,8 @@ class MyAppTheme {
         color: _darkCard,
         elevation: 0,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(24),
+          borderRadius: BorderRadius.circular(20),
+          side: const BorderSide(color: _darkBorder, width: 1),
         ),
         margin: const EdgeInsets.symmetric(vertical: 6, horizontal: 0),
       ),
@@ -154,24 +185,24 @@ class MyAppTheme {
         filled: true,
         fillColor: _darkCard,
         contentPadding: const EdgeInsets.symmetric(
-          vertical: 16,
+          vertical: 15,
           horizontal: 16,
         ),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(20),
-          borderSide: BorderSide.none,
+          borderRadius: BorderRadius.circular(16),
+          borderSide: const BorderSide(color: _darkBorder, width: 1),
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(20),
-          borderSide: BorderSide.none,
+          borderRadius: BorderRadius.circular(16),
+          borderSide: const BorderSide(color: _darkBorder, width: 1),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(20),
-          borderSide: const BorderSide(color: _darkPrimary, width: 2),
+          borderRadius: BorderRadius.circular(16),
+          borderSide: const BorderSide(color: _darkPrimary, width: 1.5),
         ),
         hintStyle: const TextStyle(
-          color: _darkTextSecondary,
-          fontSize: 16,
+          color: _darkTextMuted,
+          fontSize: 14.5,
           fontWeight: FontWeight.w400,
         ),
         labelStyle: const TextStyle(
@@ -181,60 +212,66 @@ class MyAppTheme {
       ),
 
       chipTheme: ChipThemeData(
-        backgroundColor: _darkCard,
-        selectedColor: _darkPrimary.withValues(alpha: 0.2),
+        backgroundColor: _darkSurface,
+        selectedColor: _darkPrimary.withValues(alpha: 0.18),
         labelStyle: textTheme.bodyMedium,
-        side: BorderSide.none,
+        side: const BorderSide(color: _darkBorder, width: 1),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         checkmarkColor: _darkPrimary,
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       ),
 
       sliderTheme: SliderThemeData(
         activeTrackColor: _darkPrimary,
-        inactiveTrackColor: _darkPrimary.withValues(alpha: 0.15),
+        inactiveTrackColor: _darkBorder,
         thumbColor: _darkPrimary,
-        overlayColor: _darkPrimary.withValues(alpha: 0.12),
+        overlayColor: _darkPrimary.withValues(alpha: 0.15),
         trackHeight: 4,
+        thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
       ),
 
       snackBarTheme: SnackBarThemeData(
-        backgroundColor: _darkCard,
+        backgroundColor: _darkSurface,
         contentTextStyle: textTheme.bodyLarge,
         behavior: SnackBarBehavior.floating,
-        elevation: 0,
+        elevation: 6,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(14),
+          side: const BorderSide(color: _darkBorder, width: 1),
         ),
       ),
 
       dialogTheme: DialogThemeData(
-        backgroundColor: _darkCard,
-        elevation: 0,
+        backgroundColor: _darkSurface,
+        elevation: 8,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(24),
+          borderRadius: BorderRadius.circular(20),
+          side: const BorderSide(color: _darkBorder, width: 1),
         ),
-        titleTextStyle: textTheme.headlineSmall,
+        titleTextStyle: textTheme.titleLarge,
         contentTextStyle: textTheme.bodyMedium,
       ),
 
       bottomSheetTheme: const BottomSheetThemeData(
-        backgroundColor: _darkCard,
-        elevation: 0,
+        backgroundColor: _darkSurface,
+        elevation: 10,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+          side: BorderSide(color: _darkBorder, width: 1),
         ),
       ),
 
       popupMenuTheme: PopupMenuThemeData(
-        color: _darkCard,
+        color: _darkSurface,
         elevation: 8,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
+          side: const BorderSide(color: _darkBorder, width: 1),
         ),
         textStyle: textTheme.bodyLarge,
       ),
 
-      iconTheme: const IconThemeData(color: _darkText, size: 24),
+      iconTheme: const IconThemeData(color: _darkText, size: 22),
 
       dividerColor: _darkBorder,
       dividerTheme: const DividerThemeData(color: _darkBorder, thickness: 1),

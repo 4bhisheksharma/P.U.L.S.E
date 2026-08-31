@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:lottie/lottie.dart';
+import 'package:pulse/theme/my_app_theme.dart';
 
 class EmptyState extends StatelessWidget {
   static const emptyLottie = 'assets/lottie/empty.json';
@@ -29,17 +30,18 @@ class EmptyState extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return SizedBox(
-      height: MediaQuery.of(context).size.height * 0.5,
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 36),
       child: Center(
         child: Column(
+          mainAxisSize: MainAxisSize.min,
           mainAxisAlignment: MainAxisAlignment.center,
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             if (lottieAsset != null)
               SizedBox(
-                width: 230,
-                height: 230,
+                width: 180,
+                height: 180,
                 child: Lottie.asset(
                   lottieAsset!,
                   fit: BoxFit.contain,
@@ -48,57 +50,66 @@ class EmptyState extends StatelessWidget {
               )
             else
               Container(
-                padding: const EdgeInsets.all(24),
+                padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
-                  color: theme.colorScheme.primary.withValues(alpha: 0.1),
+                  color: MyAppTheme.surfaceColor,
                   shape: BoxShape.circle,
                   border: Border.all(
-                    color: theme.colorScheme.primary.withValues(alpha: 0.2),
-                    width: 2,
+                    color: MyAppTheme.borderColor,
+                    width: 1.2,
                   ),
                 ),
                 child: Icon(
                   icon,
-                  size: 56,
-                  color: theme.colorScheme.primary.withValues(alpha: 0.59),
+                  size: 40,
+                  color: MyAppTheme.primaryColor,
                 ),
               ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 18),
             Text(
               title,
-              style: theme.textTheme.headlineSmall?.copyWith(
-                fontWeight: FontWeight.bold,
+              style: theme.textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.w700,
               ),
+              textAlign: TextAlign.center,
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 6),
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 40),
+              padding: const EdgeInsets.symmetric(horizontal: 20),
               child: Text(
                 subtitle,
                 style: theme.textTheme.bodyMedium?.copyWith(
-                  color: theme.textTheme.bodySmall?.color,
-                  height: 1.5,
+                  color: MyAppTheme.textSecondaryColor,
+                  height: 1.4,
                 ),
                 textAlign: TextAlign.center,
               ),
             ),
-            const SizedBox(height: 24),
-            if (actionLabel != null && onAction != null)
-              TextButton.icon(
+            if (actionLabel != null && onAction != null) ...[
+              const SizedBox(height: 18),
+              ElevatedButton.icon(
                 onPressed: onAction,
-                icon: Icon(actionIcon ?? Icons.clear_all_rounded, size: 20),
+                icon: Icon(actionIcon ?? Icons.add_rounded, size: 18),
                 label: Text(actionLabel!),
-                style: TextButton.styleFrom(
-                  foregroundColor: theme.colorScheme.primary,
+                style: ElevatedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 24,
-                    vertical: 12,
+                    horizontal: 20,
+                    vertical: 11,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
                   ),
                 ),
               ),
+            ],
             if (footerText != null) ...[
-              const SizedBox(height: 8),
-              Text(footerText!, style: theme.textTheme.bodySmall),
+              const SizedBox(height: 12),
+              Text(
+                footerText!,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: MyAppTheme.textMutedColor,
+                ),
+              ),
             ],
           ],
         ),

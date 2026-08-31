@@ -25,7 +25,7 @@ class _PinSetupScreenState extends State<PinSetupScreen> {
     } else {
       setState(() {
         _firstEntry = null;
-        _error = 'PINs did not match. Try again.';
+        _error = 'PINs did not match. Please try again.';
       });
     }
   }
@@ -36,47 +36,73 @@ class _PinSetupScreenState extends State<PinSetupScreen> {
     final isConfirming = _firstEntry != null;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Set PIN')),
+      appBar: AppBar(
+        titleSpacing: 20,
+        title: const Text('Set Passcode'),
+      ),
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.all(24),
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
           child: Column(
             children: [
-              const Spacer(),
-              Icon(
-                isConfirming ? Icons.lock_reset_rounded : Icons.lock_rounded,
-                size: 48,
-                color: theme.colorScheme.primary,
+              const Spacer(flex: 1),
+              Container(
+                width: 64,
+                height: 64,
+                decoration: BoxDecoration(
+                  color: MyAppTheme.primaryColor.withValues(alpha: 0.14),
+                  shape: BoxShape.circle,
+                ),
+                child: Center(
+                  child: Icon(
+                    isConfirming ? Icons.lock_reset_rounded : Icons.lock_outline_rounded,
+                    size: 30,
+                    color: MyAppTheme.primaryColor,
+                  ),
+                ),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 18),
               Text(
-                isConfirming ? 'Confirm your PIN' : 'Create a 4-digit PIN',
-                style: theme.textTheme.headlineSmall,
+                isConfirming ? 'Confirm your PIN' : 'Create a 4-Digit PIN',
+                style: theme.textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.w700,
+                ),
                 textAlign: TextAlign.center,
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 6),
               Text(
                 isConfirming
-                    ? 'Re-enter the PIN to confirm'
-                    : 'You will use this to unlock the app',
-                style: theme.textTheme.bodyMedium,
+                    ? 'Re-enter your 4 digits to confirm passcode'
+                    : 'This PIN will be required to unlock your capsules',
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: MyAppTheme.textSecondaryColor,
+                ),
                 textAlign: TextAlign.center,
               ),
               if (_error != null) ...[
                 const SizedBox(height: 12),
-                Text(
-                  _error!,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: MyAppTheme.errorColor,
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: MyAppTheme.errorColor.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    _error!,
+                    style: TextStyle(
+                      color: MyAppTheme.errorColor,
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
                 ),
               ],
-              const SizedBox(height: 40),
+              const Spacer(flex: 1),
               PinEntry(
                 key: ValueKey(isConfirming),
                 onCompleted: _onCompleted,
               ),
-              const Spacer(),
+              const Spacer(flex: 2),
             ],
           ),
         ),

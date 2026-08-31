@@ -38,8 +38,8 @@ class _StatsScreenState extends State<StatsScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Insights'),
-        backgroundColor: MyAppTheme.backgroundColor,
+        titleSpacing: 20,
+        title: const Text('Insights & Journey'),
         elevation: 0,
       ),
       body: SafeArea(
@@ -51,10 +51,9 @@ class _StatsScreenState extends State<StatsScreen> {
                     EmptyState(
                       icon: Icons.insights_rounded,
                       lottieAsset: EmptyState.emptyLottie,
-                      title: 'No insights yet',
+                      title: 'No insights recorded yet',
                       subtitle:
-                          'Record your first capsule to start seeing stats '
-                          'about your journey.',
+                          'Record your first voice capsule to start tracking your journey and timeline insights.',
                     ),
                   ],
                 ),
@@ -62,15 +61,16 @@ class _StatsScreenState extends State<StatsScreen> {
             : RefreshIndicator(
                 onRefresh: _refresh,
                 child: ListView(
-                  padding: const EdgeInsets.all(20),
+                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
                   children: [
                     _buildSummaryCards(theme, counts, capsules.length),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 14),
                     _buildHighlights(theme, capsules, counts),
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 20),
                     _buildEmotionDistribution(theme, capsules),
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 20),
                     _buildMonthlyChart(theme, capsules),
+                    const SizedBox(height: 32),
                   ],
                 ),
               ),
@@ -81,8 +81,6 @@ class _StatsScreenState extends State<StatsScreen> {
   Future<void> _refresh() async {
     setState(() {});
   }
-
-  // ---- Summary cards -----------------------------------------------------
 
   Widget _buildSummaryCards(
     ThemeData theme,
@@ -96,22 +94,22 @@ class _StatsScreenState extends State<StatsScreen> {
             icon: Icons.inventory_2_outlined,
             value: total.toString(),
             label: 'Total',
-            color: theme.colorScheme.primary,
+            color: MyAppTheme.primaryColor,
           ),
         ),
-        const SizedBox(width: 12),
+        const SizedBox(width: 10),
         Expanded(
           child: _SummaryCard(
-            icon: Icons.lock_outline,
+            icon: Icons.lock_clock_outlined,
             value: (counts[CapsuleState.locked] ?? 0).toString(),
             label: 'Locked',
             color: MyAppTheme.warningColor,
           ),
         ),
-        const SizedBox(width: 12),
+        const SizedBox(width: 10),
         Expanded(
           child: _SummaryCard(
-            icon: Icons.check_circle_outline,
+            icon: Icons.check_circle_outline_rounded,
             value: (counts[CapsuleState.opened] ?? 0).toString(),
             label: 'Opened',
             color: MyAppTheme.successColor,
@@ -120,8 +118,6 @@ class _StatsScreenState extends State<StatsScreen> {
       ],
     );
   }
-
-  // ---- Highlights (time, streak, top emotion) ----------------------------
 
   Widget _buildHighlights(
     ThemeData theme,
@@ -139,38 +135,36 @@ class _StatsScreenState extends State<StatsScreen> {
       children: [
         _StatRow(
           icon: Icons.timer_outlined,
-          label: 'Total recording time',
+          label: 'Total voice recorded',
           value: _formatTotalTime(totalSeconds),
-          color: theme.colorScheme.primary,
+          color: MyAppTheme.primaryColor,
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 8),
         _StatRow(
           icon: Icons.local_fire_department_outlined,
-          label: 'Current streak',
+          label: 'Recording streak',
           value: streak == 1 ? '1 day' : '$streak days',
           color: MyAppTheme.warningColor,
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 8),
         _StatRow(
-          icon: Icons.lock_open_outlined,
-          label: 'Ready to open',
+          icon: Icons.lock_open_rounded,
+          label: 'Ready to unlock',
           value: (counts[CapsuleState.unlockable] ?? 0).toString(),
           color: MyAppTheme.successColor,
         ),
         if (topEmotion != null) ...[
-          const SizedBox(height: 12),
+          const SizedBox(height: 8),
           _StatRow(
             icon: topEmotion.key.icon,
-            label: 'Top emotion',
+            label: 'Dominant emotion',
             value: topEmotion.key.label,
-            color: theme.colorScheme.primary,
+            color: MyAppTheme.primaryColor,
           ),
         ],
       ],
     );
   }
-
-  // ---- Emotion distribution chart ----------------------------------------
 
   Widget _buildEmotionDistribution(
     ThemeData theme,
@@ -191,18 +185,19 @@ class _StatsScreenState extends State<StatsScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _SectionTitle(icon: Icons.donut_small_rounded, title: 'Emotions'),
-        const SizedBox(height: 12),
+        _SectionTitle(icon: Icons.mood_rounded, title: 'Emotion Breakdown'),
+        const SizedBox(height: 10),
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: theme.cardColor,
-            borderRadius: BorderRadius.circular(20),
+            color: MyAppTheme.cardColor,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: MyAppTheme.borderColor, width: 1),
           ),
           child: Column(
             children: entries.map((e) {
               return Padding(
-                padding: const EdgeInsets.symmetric(vertical: 6),
+                padding: const EdgeInsets.symmetric(vertical: 5),
                 child: _EmotionBar(
                   emotion: e.key,
                   value: e.value,
@@ -215,8 +210,6 @@ class _StatsScreenState extends State<StatsScreen> {
       ],
     );
   }
-
-  // ---- Monthly recordings chart ------------------------------------------
 
   Widget _buildMonthlyChart(ThemeData theme, List<VoiceCapsule> capsules) {
     final now = DateTime.now();
@@ -240,17 +233,18 @@ class _StatsScreenState extends State<StatsScreen> {
       children: [
         _SectionTitle(
           icon: Icons.calendar_month_rounded,
-          title: 'Last 6 months',
+          title: 'Recent Activity',
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 10),
         Container(
-          padding: const EdgeInsets.fromLTRB(16, 20, 16, 12),
+          padding: const EdgeInsets.fromLTRB(16, 18, 16, 12),
           decoration: BoxDecoration(
-            color: theme.cardColor,
-            borderRadius: BorderRadius.circular(20),
+            color: MyAppTheme.cardColor,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: MyAppTheme.borderColor, width: 1),
           ),
           child: SizedBox(
-            height: 140,
+            height: 130,
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: entries.map((e) {
@@ -270,8 +264,6 @@ class _StatsScreenState extends State<StatsScreen> {
     );
   }
 
-  // ---- Computations ------------------------------------------------------
-
   int _currentStreak(List<VoiceCapsule> capsules) {
     if (capsules.isEmpty) return 0;
     final days = capsules
@@ -285,7 +277,6 @@ class _StatsScreenState extends State<StatsScreen> {
     final now = DateTime.now();
     var day = DateTime(now.year, now.month, now.day);
 
-    // Allow the streak to count from today or yesterday.
     if (!days.contains(day)) {
       day = day.subtract(const Duration(days: 1));
       if (!days.contains(day)) return 0;
@@ -338,23 +329,31 @@ class _SummaryCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 12),
+      padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 10),
       decoration: BoxDecoration(
-        color: theme.cardColor,
-        borderRadius: BorderRadius.circular(20),
+        color: MyAppTheme.cardColor,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: MyAppTheme.borderColor, width: 1),
       ),
       child: Column(
         children: [
-          Icon(icon, color: color, size: 24),
-          const SizedBox(height: 10),
+          Icon(icon, color: color, size: 22),
+          const SizedBox(height: 6),
           Text(
             value,
             style: theme.textTheme.headlineSmall?.copyWith(
-              fontWeight: FontWeight.bold,
+              fontWeight: FontWeight.w700,
+              fontSize: 20,
             ),
           ),
-          const SizedBox(height: 2),
-          Text(label, style: theme.textTheme.bodySmall),
+          const SizedBox(height: 1),
+          Text(
+            label,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: MyAppTheme.textSecondaryColor,
+              fontSize: 11,
+            ),
+          ),
         ],
       ),
     );
@@ -378,21 +377,30 @@ class _StatRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
-        color: theme.cardColor,
-        borderRadius: BorderRadius.circular(16),
+        color: MyAppTheme.cardColor,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: MyAppTheme.borderColor, width: 1),
       ),
       child: Row(
         children: [
-          Icon(icon, color: color, size: 22),
+          Icon(icon, color: color, size: 19),
           const SizedBox(width: 12),
-          Expanded(child: Text(label, style: theme.textTheme.bodyLarge)),
+          Expanded(
+            child: Text(
+              label,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: MyAppTheme.textColor,
+              ),
+            ),
+          ),
           Text(
             value,
             style: theme.textTheme.titleMedium?.copyWith(
               color: color,
-              fontWeight: FontWeight.bold,
+              fontWeight: FontWeight.w600,
+              fontSize: 14,
             ),
           ),
         ],
@@ -409,12 +417,18 @@ class _SectionTitle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     return Row(
       children: [
-        Icon(icon, size: 20, color: theme.colorScheme.primary),
-        const SizedBox(width: 10),
-        Text(title, style: theme.textTheme.titleLarge),
+        Icon(icon, size: 18, color: MyAppTheme.primaryColor),
+        const SizedBox(width: 8),
+        Text(
+          title,
+          style: const TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.w600,
+            letterSpacing: -0.2,
+          ),
+        ),
       ],
     );
   }
@@ -438,32 +452,34 @@ class _EmotionBar extends StatelessWidget {
 
     return Row(
       children: [
-        Icon(emotion.icon, size: 18, color: theme.colorScheme.primary),
-        const SizedBox(width: 10),
+        Icon(emotion.icon, size: 16, color: MyAppTheme.primaryColor),
+        const SizedBox(width: 8),
         SizedBox(
-          width: 78,
+          width: 76,
           child: Text(
             emotion.label,
-            style: theme.textTheme.bodyMedium,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: MyAppTheme.textColor,
+            ),
             overflow: TextOverflow.ellipsis,
           ),
         ),
         Expanded(
           child: ClipRRect(
-            borderRadius: BorderRadius.circular(6),
+            borderRadius: BorderRadius.circular(4),
             child: Stack(
               children: [
                 Container(
-                  height: 10,
-                  color: theme.colorScheme.primary.withValues(alpha: 0.12),
+                  height: 7,
+                  color: MyAppTheme.surfaceColor,
                 ),
                 FractionallySizedBox(
-                  widthFactor: fraction.clamp(0.02, 1.0),
+                  widthFactor: fraction.clamp(0.04, 1.0),
                   child: Container(
-                    height: 10,
+                    height: 7,
                     decoration: BoxDecoration(
-                      color: theme.colorScheme.primary,
-                      borderRadius: BorderRadius.circular(6),
+                      color: MyAppTheme.primaryColor,
+                      borderRadius: BorderRadius.circular(4),
                     ),
                   ),
                 ),
@@ -476,6 +492,7 @@ class _EmotionBar extends StatelessWidget {
           value.toString(),
           style: theme.textTheme.bodySmall?.copyWith(
             fontWeight: FontWeight.w600,
+            color: MyAppTheme.textColor,
           ),
         ),
       ],
@@ -504,6 +521,7 @@ class _MonthBar extends StatelessWidget {
           value > 0 ? value.toString() : '',
           style: theme.textTheme.bodySmall?.copyWith(
             fontWeight: FontWeight.w600,
+            fontSize: 11,
           ),
         ),
         const SizedBox(height: 4),
@@ -511,21 +529,27 @@ class _MonthBar extends StatelessWidget {
           child: Align(
             alignment: Alignment.bottomCenter,
             child: FractionallySizedBox(
-              heightFactor: fraction <= 0 ? 0.02 : fraction,
+              heightFactor: fraction <= 0 ? 0.04 : fraction,
               child: Container(
-                width: 18,
+                width: 16,
                 decoration: BoxDecoration(
                   color: value > 0
-                      ? theme.colorScheme.primary
-                      : theme.colorScheme.primary.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(6),
+                      ? MyAppTheme.primaryColor
+                      : MyAppTheme.primaryColor.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(4),
                 ),
               ),
             ),
           ),
         ),
-        const SizedBox(height: 8),
-        Text(label, style: theme.textTheme.bodySmall),
+        const SizedBox(height: 6),
+        Text(
+          label,
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: MyAppTheme.textSecondaryColor,
+            fontSize: 11,
+          ),
+        ),
       ],
     );
   }

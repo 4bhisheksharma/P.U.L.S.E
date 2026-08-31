@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:pulse/services/app_lock_service.dart';
 import 'package:pulse/services/settings_service.dart';
+import 'package:pulse/theme/my_app_theme.dart';
 import 'package:pulse/widgets/common/pin_entry.dart';
 
 /// Full-screen lock shown over the app when [AppLockService.isLockEnabled].
@@ -43,10 +44,11 @@ class _LockScreenState extends State<LockScreen> {
 
   void _verifyPin(String pin) {
     if (SettingsService.verifyPin(pin)) {
+      HapticFeedback.mediumImpact();
       widget.onUnlocked();
     } else {
       HapticFeedback.heavyImpact();
-      setState(() => _error = 'Incorrect PIN');
+      setState(() => _error = 'Incorrect PIN. Try again.');
     }
   }
 
@@ -59,50 +61,67 @@ class _LockScreenState extends State<LockScreen> {
     return PopScope(
       canPop: false,
       child: Scaffold(
-        backgroundColor: theme.scaffoldBackgroundColor,
+        backgroundColor: MyAppTheme.backgroundColor,
         body: SafeArea(
           child: Padding(
-            padding: const EdgeInsets.all(24),
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
             child: Column(
               children: [
-                const Spacer(),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(20),
-                  child: Image.asset(
-                    'assets/images/icon.png',
-                    width: 80,
-                    height: 80,
-                    fit: BoxFit.cover,
+                const Spacer(flex: 1),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: MyAppTheme.surfaceColor,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: MyAppTheme.borderColor, width: 1),
+                    boxShadow: [
+                      BoxShadow(
+                        color: MyAppTheme.primaryColor.withValues(alpha: 0.15),
+                        blurRadius: 24,
+                      ),
+                    ],
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(16),
+                    child: Image.asset(
+                      'assets/images/icon.png',
+                      width: 64,
+                      height: 64,
+                      fit: BoxFit.cover,
+                    ),
                   ),
                 ),
                 const SizedBox(height: 20),
                 Text(
-                  'P.U.L.S.E is locked',
-                  style: theme.textTheme.headlineSmall,
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  _error ?? 'Enter your PIN to continue',
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: _error != null
-                        ? theme.colorScheme.error
-                        : theme.textTheme.bodyMedium?.color,
+                  'P.U.L.S.E is Locked',
+                  style: theme.textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
-                const SizedBox(height: 40),
+                const SizedBox(height: 6),
+                Text(
+                  _error ?? 'Enter your 4-digit PIN to continue',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: _error != null
+                        ? MyAppTheme.errorColor
+                        : MyAppTheme.textSecondaryColor,
+                    fontWeight: _error != null ? FontWeight.w600 : FontWeight.normal,
+                  ),
+                ),
+                const Spacer(flex: 1),
                 PinEntry(
                   onCompleted: _verifyPin,
                   biometricButton: showBiometric
                       ? IconButton(
                           onPressed: _tryBiometric,
-                          icon: const Icon(Icons.fingerprint),
-                          iconSize: 32,
-                          color: theme.colorScheme.primary,
-                          tooltip: 'Use biometrics',
+                          icon: const Icon(Icons.fingerprint_rounded),
+                          iconSize: 28,
+                          color: MyAppTheme.primaryColor,
+                          tooltip: 'Unlock with biometrics',
                         )
                       : null,
                 ),
-                const Spacer(),
+                const Spacer(flex: 2),
               ],
             ),
           ),

@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:pulse/models/models.dart';
 import 'package:pulse/theme/my_app_theme.dart';
 import 'package:pulse/widgets/common/live_countdown_timer.dart';
@@ -80,156 +81,196 @@ class _CapsuleCardState extends State<CapsuleCard> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
     final emotion = EmotionTag.fromString(capsule.emotionTag);
+    final isUnlockable = capsule.state == CapsuleState.unlockable;
+    final isLocked = capsule.state == CapsuleState.locked;
 
-    return Material(
-      color: theme.cardColor,
-      borderRadius: BorderRadius.circular(24),
-      child: InkWell(
-        onTap: widget.onTap,
-        borderRadius: BorderRadius.circular(24),
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.all(20),
-              child: Row(
-                children: [
-                  _buildStatusIcon(context),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _buildTitle(theme),
-                        const SizedBox(height: 6),
-                        _buildSubtitle(theme, emotion),
-                      ],
-                    ),
+    return Container(
+      decoration: BoxDecoration(
+        color: MyAppTheme.cardColor,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: isUnlockable
+              ? MyAppTheme.successColor.withValues(alpha: 0.35)
+              : MyAppTheme.borderColor,
+          width: isUnlockable ? 1.2 : 1,
+        ),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(18),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: () {
+              HapticFeedback.selectionClick();
+              widget.onTap?.call();
+            },
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 12, 14),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildLeadingIcon(context),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              capsule.title,
+                              style: theme.textTheme.titleMedium?.copyWith(
+                                fontWeight: FontWeight.w600,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 4),
+                            _buildSubtitleRow(theme, emotion),
+                            if (capsule.description != null &&
+                                capsule.description!.isNotEmpty) ...[
+                              const SizedBox(height: 6),
+                              Text(
+                                capsule.description!,
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: MyAppTheme.textMutedColor,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                      _buildPopupMenu(context, theme),
+                    ],
                   ),
-                  _buildPopupMenu(context, theme, isDark),
-                ],
-              ),
+                ),
+                if (isLocked) _buildProgressFooter(theme),
+              ],
             ),
-            if (capsule.isLocked) _buildProgressBar(theme),
-          ],
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildStatusIcon(BuildContext context) {
-    final theme = Theme.of(context);
+  Widget _buildLeadingIcon(BuildContext context) {
     final IconData icon;
     final Color color;
+    final Color bgColor;
 
     switch (capsule.state) {
       case CapsuleState.locked:
-        icon = Icons.lock;
-        color = theme.colorScheme.primary;
+        icon = Icons.lock_clock_rounded;
+        color = MyAppTheme.primaryColor;
+        bgColor = MyAppTheme.primaryColor.withValues(alpha: 0.12);
         break;
       case CapsuleState.unlockable:
-        icon = Icons.lock_open;
-        color = MyAppTheme.warningColor;
+        icon = Icons.lock_open_rounded;
+        color = MyAppTheme.successColor;
+        bgColor = MyAppTheme.successColor.withValues(alpha: 0.14);
         break;
       case CapsuleState.opened:
         icon = Icons.play_arrow_rounded;
-        color = MyAppTheme.successColor;
+        color = MyAppTheme.textSecondaryColor;
+        bgColor = MyAppTheme.surfaceColor;
         break;
     }
 
     return Container(
-      width: 50,
-      height: 50,
+      width: 44,
+      height: 44,
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.15),
-        borderRadius: BorderRadius.circular(14),
+        color: bgColor,
+        borderRadius: BorderRadius.circular(13),
       ),
-      child: Icon(icon, color: color, size: 28),
+      child: Center(
+        child: Icon(icon, color: color, size: 22),
+      ),
     );
   }
 
-  Widget _buildTitle(ThemeData theme) {
-    return Row(
+  Widget _buildSubtitleRow(ThemeData theme, EmotionTag? emotion) {
+    return Wrap(
+      spacing: 6,
+      runSpacing: 4,
+      crossAxisAlignment: WrapCrossAlignment.center,
       children: [
-        Icon(
-          capsule.state.icon,
-          size: 16,
-          color: theme.colorScheme.primary,
-        ),
-        const SizedBox(width: 6),
-        Expanded(
-          child: Text(
-            capsule.title,
-            style: theme.textTheme.bodyLarge?.copyWith(
-              fontWeight: FontWeight.w600,
-              fontSize: 16,
+        if (emotion != null)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+            decoration: BoxDecoration(
+              color: MyAppTheme.surfaceColor,
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(color: MyAppTheme.borderColor, width: 0.8),
             ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(emotion.icon, size: 12, color: MyAppTheme.primaryColor),
+                const SizedBox(width: 4),
+                Text(
+                  emotion.label,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
           ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildSubtitle(ThemeData theme, EmotionTag? emotion) {
-    return Row(
-      children: [
-        if (emotion != null) ...[
-          Icon(emotion.icon, size: 14, color: theme.colorScheme.primary),
-          const SizedBox(width: 4),
-        ],
-        Expanded(
-          child: Text(
-            _getSubtitleText(),
-            style: theme.textTheme.bodyMedium?.copyWith(fontSize: 13),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-        ),
-        const SizedBox(width: 8),
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
           decoration: BoxDecoration(
-            color: theme.colorScheme.primary.withValues(alpha: 0.1),
-            borderRadius: BorderRadius.circular(8),
+            color: MyAppTheme.surfaceColor,
+            borderRadius: BorderRadius.circular(6),
+            border: Border.all(color: MyAppTheme.borderColor, width: 0.8),
           ),
-          child: Text(
-            capsule.durationFormatted,
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.primary,
-              fontWeight: FontWeight.w600,
-              fontSize: 11,
-            ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.graphic_eq_rounded, size: 12, color: MyAppTheme.textSecondaryColor),
+              const SizedBox(width: 4),
+              Text(
+                capsule.durationFormatted,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w500,
+                  color: MyAppTheme.textSecondaryColor,
+                ),
+              ),
+            ],
           ),
         ),
       ],
     );
   }
 
-  Widget _buildProgressBar(ThemeData theme) {
+  Widget _buildProgressFooter(ThemeData theme) {
     final progress = capsule.unlockProgress;
 
     return Column(
       children: [
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               LiveCountdownTimer(
                 capsule: capsule,
                 textStyle: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.primary,
+                  color: MyAppTheme.primaryColor,
                   fontWeight: FontWeight.w500,
-                  fontSize: 11,
+                  fontSize: 11.5,
                 ),
               ),
               Text(
                 '${(progress * 100).toStringAsFixed(0)}%',
                 style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.primary,
+                  color: MyAppTheme.textSecondaryColor,
                   fontWeight: FontWeight.w600,
                   fontSize: 11,
                 ),
@@ -237,33 +278,36 @@ class _CapsuleCardState extends State<CapsuleCard> {
             ],
           ),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 4),
         ClipRRect(
           borderRadius: const BorderRadius.only(
-            bottomLeft: Radius.circular(24),
-            bottomRight: Radius.circular(24),
+            bottomLeft: Radius.circular(18),
+            bottomRight: Radius.circular(18),
           ),
           child: LinearProgressIndicator(
             value: progress,
-            minHeight: 4,
-            backgroundColor: theme.colorScheme.primary.withValues(alpha: 0.1),
-            valueColor: AlwaysStoppedAnimation<Color>(
-              theme.colorScheme.primary,
-            ),
+            minHeight: 3,
+            backgroundColor: MyAppTheme.surfaceColor,
+            valueColor: AlwaysStoppedAnimation<Color>(MyAppTheme.primaryColor),
           ),
         ),
       ],
     );
   }
 
-  Widget _buildPopupMenu(BuildContext context, ThemeData theme, bool isDark) {
+  Widget _buildPopupMenu(BuildContext context, ThemeData theme) {
     return PopupMenuButton<String>(
+      padding: EdgeInsets.zero,
       icon: Icon(
-        Icons.more_horiz,
-        color: isDark ? Colors.grey[400] : Colors.grey[600],
+        Icons.more_vert_rounded,
+        size: 18,
+        color: MyAppTheme.textMutedColor,
       ),
-      color: theme.cardColor,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      color: MyAppTheme.surfaceColor,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+        side: BorderSide(color: MyAppTheme.borderColor, width: 1),
+      ),
       onSelected: (value) {
         switch (value) {
           case 'share':
@@ -279,7 +323,7 @@ class _CapsuleCardState extends State<CapsuleCard> {
           value: 'share',
           child: Row(
             children: [
-              Icon(Icons.share, size: 20, color: theme.iconTheme.color),
+              Icon(Icons.share_outlined, size: 18, color: MyAppTheme.textColor),
               const SizedBox(width: 12),
               Text('Share', style: theme.textTheme.bodyLarge),
             ],
@@ -289,38 +333,23 @@ class _CapsuleCardState extends State<CapsuleCard> {
           value: 'rename',
           child: Row(
             children: [
-              Icon(Icons.edit, size: 20, color: theme.iconTheme.color),
+              Icon(Icons.edit_outlined, size: 18, color: MyAppTheme.textColor),
               const SizedBox(width: 12),
               Text('Rename', style: theme.textTheme.bodyLarge),
             ],
           ),
         ),
-        const PopupMenuItem(
+        PopupMenuItem(
           value: 'delete',
           child: Row(
             children: [
-              Icon(Icons.delete, size: 20, color: Colors.red),
-              SizedBox(width: 12),
-              Text('Delete', style: TextStyle(color: Colors.red)),
+              Icon(Icons.delete_outline_rounded, size: 18, color: MyAppTheme.errorColor),
+              const SizedBox(width: 12),
+              Text('Delete', style: TextStyle(color: MyAppTheme.errorColor, fontSize: 15)),
             ],
           ),
         ),
       ],
     );
-  }
-
-  String _getSubtitleText() {
-    final emotion = EmotionTag.fromString(capsule.emotionTag);
-    final emotionText = emotion != null ? '${emotion.label} • ' : '';
-
-    if (capsule.state == CapsuleState.opened) {
-      return '${emotionText}Opened';
-    } else if (capsule.state == CapsuleState.unlockable) {
-      return '${emotionText}Ready to unlock!';
-    } else {
-      return emotionText.isNotEmpty
-          ? emotionText.substring(0, emotionText.length - 3)
-          : 'Locked';
-    }
   }
 }

@@ -2,9 +2,12 @@ import 'dart:async';
 import 'dart:io';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:intl/intl.dart';
 import 'package:pulse/models/models.dart';
 import 'package:pulse/services/capsule_database.dart';
 import 'package:pulse/theme/my_app_theme.dart';
+import 'package:pulse/utils/capsule_actions.dart';
 
 class AudioPlayerScreen extends StatefulWidget {
   final VoiceCapsule capsule;
@@ -15,12 +18,17 @@ class AudioPlayerScreen extends StatefulWidget {
   State<AudioPlayerScreen> createState() => _AudioPlayerScreenState();
 }
 
-class _AudioPlayerScreenState extends State<AudioPlayerScreen> {
+class _AudioPlayerScreenState extends State<AudioPlayerScreen>
+    with SingleTickerProviderStateMixin {
   final AudioPlayer _audioPlayer = AudioPlayer();
+  late AnimationController _pulseController;
+  late Animation<double> _pulseAnimation;
+
   bool _isPlaying = false;
   bool _isLoading = true;
   bool _isPrepared = false;
   bool _markedOpened = false;
+  double _playbackRate = 1.0;
   Duration _duration = Duration.zero;
   Duration _position = Duration.zero;
   String? _errorMessage;
@@ -28,6 +36,14 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen> {
   @override
   void initState() {
     super.initState();
+    _pulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1400),
+    );
+    _pulseAnimation = Tween<double>(begin: 0.96, end: 1.04).animate(
+      CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
+    );
+
     _setupAudioPlayer();
   }
 
@@ -39,7 +55,7 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen> {
         : widget.capsule.durationInSeconds;
     final thresholdSeconds = durationSeconds <= 3
         ? 1
-        : (durationSeconds * 0.25).ceil().clamp(3, 30);
+        : (durationSeconds * 0.25).ceil().clamp(2, 30);
     if (position.inSeconds < thresholdSeconds) return;
 
     _markedOpened = true;
@@ -50,6 +66,7 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen> {
 
   @override
   void dispose() {
+    _pulseController.dispose();
     _audioPlayer.dispose();
     super.dispose();
   }
@@ -59,7 +76,7 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen> {
       final file = File(widget.capsule.audioFilePath);
       if (!await file.exists()) {
         setState(() {
-          _errorMessage = 'Audio file not found';
+          _errorMessage = 'Audio file was not found on device';
           _isLoading = false;
         });
         return;
@@ -67,9 +84,13 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen> {
 
       _audioPlayer.onPlayerStateChanged.listen((state) {
         if (mounted) {
-          setState(() {
-            _isPlaying = state == PlayerState.playing;
-          });
+          final isPlaying = state == PlayerState.playing;
+          setState(() => _isPlaying = isPlaying);
+          if (isPlaying) {
+            _pulseController.repeat(reverse: true);
+          } else {
+            _pulseController.stop();
+          }
         }
       });
 
@@ -92,6 +113,7 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen> {
             _isPlaying = false;
             _position = Duration.zero;
           });
+          _pulseController.stop();
         }
         _markOpenedIfListenedEnough(_duration);
       });
@@ -124,6 +146,7 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen> {
   }
 
   Future<void> _playPause() async {
+    HapticFeedback.selectionClick();
     try {
       if (_isPlaying) {
         await _audioPlayer.pause();
@@ -141,6 +164,7 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen> {
         await _audioPlayer.seek(Duration.zero);
       }
 
+      await _audioPlayer.setPlaybackRate(_playbackRate);
       await _audioPlayer.resume();
     } catch (e) {
       try {
@@ -152,17 +176,13 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen> {
     }
   }
 
-  Future<void> _stop() async {
-    try {
-      await _audioPlayer.stop();
-      setState(() {
-        _position = Duration.zero;
-        _isPlaying = false;
-        _isPrepared = false;
-      });
-    } catch (e) {
-      _showError('Stop error: $e');
-    }
+  Future<void> _seekBy(int seconds) async {
+    HapticFeedback.selectionClick();
+    final newSeconds = (_position.inSeconds + seconds).clamp(
+      0,
+      _duration.inSeconds,
+    );
+    await _seek(Duration(seconds: newSeconds));
   }
 
   Future<void> _seek(Duration position) async {
@@ -171,6 +191,16 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen> {
     } catch (e) {
       _showError('Seek error: $e');
     }
+  }
+
+  Future<void> _cyclePlaybackRate() async {
+    HapticFeedback.selectionClick();
+    final rates = [1.0, 1.25, 1.5, 2.0];
+    final nextIndex = (rates.indexOf(_playbackRate) + 1) % rates.length;
+    final nextRate = rates[nextIndex];
+
+    await _audioPlayer.setPlaybackRate(nextRate);
+    setState(() => _playbackRate = nextRate);
   }
 
   void _showError(String message) {
@@ -197,173 +227,89 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen> {
     final emotion = EmotionTag.fromString(widget.capsule.emotionTag);
 
     return Scaffold(
-      appBar: AppBar(title: Text(widget.capsule.title)),
+      appBar: AppBar(
+        title: const Text('Time Capsule'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.share_outlined, size: 20),
+            tooltip: 'Share audio',
+            onPressed: () => CapsuleActions.shareCapsule(
+              context: context,
+              capsule: widget.capsule,
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.delete_outline_rounded, size: 20),
+            tooltip: 'Delete',
+            onPressed: _confirmDelete,
+          ),
+          const SizedBox(width: 8),
+        ],
+      ),
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.all(24),
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const Spacer(),
-              Container(
-                padding: const EdgeInsets.all(24),
-                decoration: BoxDecoration(
-                  color: theme.cardColor,
-                  borderRadius: BorderRadius.circular(24),
+              const Spacer(flex: 1),
+
+              // Animated Pulse Disc Artwork
+              _buildArtDisc(theme, emotion),
+              const SizedBox(height: 28),
+
+              // Title and metadata
+              Text(
+                widget.capsule.title,
+                style: theme.textTheme.headlineMedium?.copyWith(
+                  fontWeight: FontWeight.w700,
                 ),
-                child: Column(
-                  children: [
-                    if (emotion != null)
-                      Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: theme.colorScheme.primary.withValues(
-                            alpha: 0.12,
-                          ),
-                          shape: BoxShape.circle,
-                        ),
-                        child: Icon(
-                          emotion.icon,
-                          size: 48,
-                          color: theme.colorScheme.primary,
-                        ),
-                      ),
-                    const SizedBox(height: 16),
-                    Text(
-                      widget.capsule.title,
-                      style: theme.textTheme.headlineSmall?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 8),
-                    if (widget.capsule.description != null)
-                      Text(
-                        widget.capsule.description!,
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          color: theme.textTheme.bodySmall?.color,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                    const SizedBox(height: 16),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.calendar_today,
-                          size: 16,
-                          color: theme.textTheme.bodySmall?.color,
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          'Recorded ${_formatDate(widget.capsule.recordedDate)}',
-                          style: theme.textTheme.bodySmall,
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.lock_open,
-                          size: 16,
-                          color: theme.colorScheme.primary,
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          'Unlocked ${_formatDate(widget.capsule.unlockDate)}',
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.primary,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
+                textAlign: TextAlign.center,
               ),
-              const Spacer(),
-              if (_errorMessage != null)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 16),
+              const SizedBox(height: 8),
+
+              if (widget.capsule.description != null &&
+                  widget.capsule.description!.isNotEmpty) ...[
+                Text(
+                  widget.capsule.description!,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: MyAppTheme.textSecondaryColor,
+                  ),
+                  textAlign: TextAlign.center,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 12),
+              ],
+
+              // Info Badge (Dates & Emotion)
+              _buildInfoBadges(theme, emotion),
+
+              const Spacer(flex: 2),
+
+              if (_errorMessage != null) ...[
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: MyAppTheme.errorColor.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                   child: Text(
                     _errorMessage!,
                     style: TextStyle(color: MyAppTheme.errorColor),
                     textAlign: TextAlign.center,
                   ),
                 ),
-              if (_errorMessage == null) ...[
-                Slider(
-                  value: _position.inSeconds.toDouble().clamp(0, _sliderMax),
-                  max: _sliderMax,
-                  onChanged: _isLoading
-                      ? null
-                      : (value) => _seek(Duration(seconds: value.toInt())),
-                ),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        _formatDuration(_position),
-                        style: theme.textTheme.bodySmall,
-                      ),
-                      Text(
-                        _formatDuration(_duration),
-                        style: theme.textTheme.bodySmall,
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 32),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    IconButton(
-                      onPressed: _isLoading ? null : _stop,
-                      icon: const Icon(Icons.stop),
-                      iconSize: 32,
-                      color: theme.colorScheme.primary,
-                    ),
-                    const SizedBox(width: 32),
-                    Container(
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: theme.colorScheme.primary.withValues(
-                          alpha: 0.15,
-                        ),
-                        border: Border.all(
-                          color: theme.colorScheme.primary,
-                          width: 2,
-                        ),
-                      ),
-                      child: IconButton(
-                        onPressed: _isLoading ? null : _playPause,
-                        icon: _isLoading
-                            ? const SizedBox(
-                                width: 24,
-                                height: 24,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                ),
-                              )
-                            : Icon(_isPlaying ? Icons.pause : Icons.play_arrow),
-                        iconSize: 48,
-                        color: theme.colorScheme.primary,
-                      ),
-                    ),
-                    const SizedBox(width: 32),
-                    IconButton(
-                      onPressed: _isLoading ? null : () => _seek(Duration.zero),
-                      icon: const Icon(Icons.replay),
-                      iconSize: 32,
-                      color: theme.colorScheme.primary,
-                    ),
-                  ],
-                ),
+                const SizedBox(height: 20),
+              ] else ...[
+                // Slider and Timers
+                _buildScrubber(theme),
+                const SizedBox(height: 16),
+
+                // Controls
+                _buildPlayerControls(theme),
               ],
-              const Spacer(),
+
+              const Spacer(flex: 1),
             ],
           ),
         ),
@@ -371,18 +317,254 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen> {
     );
   }
 
-  String _formatDate(DateTime date) {
-    final now = DateTime.now();
-    final difference = now.difference(date);
+  Widget _buildArtDisc(ThemeData theme, EmotionTag? emotion) {
+    return ScaleTransition(
+      scale: _isPlaying ? _pulseAnimation : const AlwaysStoppedAnimation(1.0),
+      child: Container(
+        width: 170,
+        height: 170,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              MyAppTheme.primaryColor.withValues(alpha: 0.35),
+              MyAppTheme.cardColor,
+            ],
+          ),
+          border: Border.all(
+            color: _isPlaying
+                ? MyAppTheme.primaryColor.withValues(alpha: 0.6)
+                : MyAppTheme.borderColor,
+            width: 2,
+          ),
+          boxShadow: [
+            if (_isPlaying)
+              BoxShadow(
+                color: MyAppTheme.primaryColor.withValues(alpha: 0.25),
+                blurRadius: 30,
+                spreadRadius: 4,
+              ),
+          ],
+        ),
+        child: Center(
+          child: Icon(
+            emotion?.icon ?? Icons.lock_open_rounded,
+            size: 64,
+            color: MyAppTheme.primaryColor,
+          ),
+        ),
+      ),
+    );
+  }
 
-    if (difference.inDays == 0) {
-      return 'today';
-    } else if (difference.inDays == 1) {
-      return 'yesterday';
-    } else if (difference.inDays < 7) {
-      return '${difference.inDays} days ago';
-    } else {
-      return '${date.day}/${date.month}/${date.year}';
+  Widget _buildInfoBadges(ThemeData theme, EmotionTag? emotion) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      decoration: BoxDecoration(
+        color: MyAppTheme.surfaceColor,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: MyAppTheme.borderColor, width: 1),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.history_rounded,
+            size: 15,
+            color: MyAppTheme.textSecondaryColor,
+          ),
+          const SizedBox(width: 6),
+          Text(
+            'Recorded ${DateFormat.yMMMd().format(widget.capsule.recordedDate)}',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: MyAppTheme.textSecondaryColor,
+            ),
+          ),
+          if (emotion != null) ...[
+            Container(
+              margin: const EdgeInsets.symmetric(horizontal: 10),
+              width: 4,
+              height: 4,
+              decoration: BoxDecoration(
+                color: MyAppTheme.borderColor,
+                shape: BoxShape.circle,
+              ),
+            ),
+            Icon(emotion.icon, size: 14, color: MyAppTheme.primaryColor),
+            const SizedBox(width: 4),
+            Text(
+              emotion.label,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: MyAppTheme.primaryColor,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildScrubber(ThemeData theme) {
+    return Column(
+      children: [
+        SliderTheme(
+          data: theme.sliderTheme.copyWith(
+            trackHeight: 4,
+            thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
+          ),
+          child: Slider(
+            value: _position.inSeconds.toDouble().clamp(0, _sliderMax),
+            max: _sliderMax,
+            onChanged: _isLoading
+                ? null
+                : (value) {
+                    _seek(Duration(seconds: value.toInt()));
+                  },
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                _formatDuration(_position),
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: MyAppTheme.textSecondaryColor,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              Text(
+                _formatDuration(_duration),
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: MyAppTheme.textSecondaryColor,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPlayerControls(ThemeData theme) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        // Playback speed toggle
+        Material(
+          color: MyAppTheme.surfaceColor,
+          borderRadius: BorderRadius.circular(10),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(10),
+            onTap: _cyclePlaybackRate,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: MyAppTheme.borderColor, width: 1),
+              ),
+              child: Text(
+                '${_playbackRate.toStringAsFixed(_playbackRate % 1 == 0 ? 0 : 2)}x',
+                style: TextStyle(
+                  color: MyAppTheme.primaryColor,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 12.5,
+                ),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 20),
+
+        // Skip -10s
+        IconButton(
+          onPressed: () => _seekBy(-10),
+          icon: const Icon(Icons.replay_10_rounded),
+          iconSize: 28,
+          color: MyAppTheme.textColor,
+          tooltip: 'Rewind 10s',
+        ),
+        const SizedBox(width: 14),
+
+        // Main Play/Pause Button
+        GestureDetector(
+          onTap: _playPause,
+          child: Container(
+            width: 68,
+            height: 68,
+            decoration: BoxDecoration(
+              color: MyAppTheme.primaryColor,
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: MyAppTheme.primaryColor.withValues(alpha: 0.35),
+                  blurRadius: 18,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Center(
+              child: Icon(
+                _isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                color: Colors.white,
+                size: 34,
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 14),
+
+        // Skip +10s
+        IconButton(
+          onPressed: () => _seekBy(10),
+          icon: const Icon(Icons.forward_10_rounded),
+          iconSize: 28,
+          color: MyAppTheme.textColor,
+          tooltip: 'Forward 10s',
+        ),
+        const SizedBox(width: 20),
+
+        // Restart from beginning
+        IconButton(
+          onPressed: () => _seek(Duration.zero),
+          icon: const Icon(Icons.restart_alt_rounded),
+          iconSize: 24,
+          color: MyAppTheme.textSecondaryColor,
+          tooltip: 'Restart',
+        ),
+      ],
+    );
+  }
+
+  Future<void> _confirmDelete() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete this Capsule?'),
+        content: Text('Permanently delete "${widget.capsule.title}"?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: MyAppTheme.errorColor),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && mounted) {
+      await _audioPlayer.stop();
+      await CapsuleDatabase.deleteCapsule(widget.capsule.id);
+      if (mounted) Navigator.pop(context);
     }
   }
 }

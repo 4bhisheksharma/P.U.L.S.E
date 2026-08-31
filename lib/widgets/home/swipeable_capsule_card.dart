@@ -30,16 +30,16 @@ class SwipeableCapsuleCard extends StatelessWidget {
       movementDuration: const Duration(milliseconds: 200),
       background: Container(
         alignment: Alignment.centerRight,
-        padding: const EdgeInsets.only(right: 28),
+        padding: const EdgeInsets.only(right: 24),
         decoration: BoxDecoration(
-          color: MyAppTheme.errorColor.withValues(alpha: 0.9),
-          borderRadius: BorderRadius.circular(24),
+          color: MyAppTheme.errorColor.withValues(alpha: 0.85),
+          borderRadius: BorderRadius.circular(18),
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Container(
-              padding: const EdgeInsets.all(10),
+              padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
                 color: Colors.white.withValues(alpha: 0.15),
                 shape: BoxShape.circle,
@@ -47,15 +47,16 @@ class SwipeableCapsuleCard extends StatelessWidget {
               child: const Icon(
                 Icons.delete_outline_rounded,
                 color: Colors.white,
-                size: 24,
+                size: 20,
               ),
             ),
-            const SizedBox(height: 6),
+            const SizedBox(height: 4),
             Text(
               'Delete',
               style: theme.textTheme.bodySmall?.copyWith(
                 color: Colors.white,
                 fontWeight: FontWeight.w600,
+                fontSize: 11,
               ),
             ),
           ],

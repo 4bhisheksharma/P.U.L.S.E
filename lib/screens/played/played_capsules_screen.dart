@@ -75,23 +75,24 @@ class _PlayedCapsulesScreenState extends State<PlayedCapsulesScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        titleSpacing: 20,
         title: const Text('Played Capsules'),
-        backgroundColor: MyAppTheme.backgroundColor,
         elevation: 0,
       ),
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.all(20.0),
+          padding: const EdgeInsets.symmetric(horizontal: 18),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              const SizedBox(height: 8),
               SearchBarWidget(
                 controller: _searchController,
                 onChanged: _handleSearch,
-                hintText: 'Search played capsules...',
+                hintText: 'Search played messages...',
               ),
               if (_searchController.text.isNotEmpty) ...[
-                const SizedBox(height: 16),
+                const SizedBox(height: 12),
                 SearchResultsCounter(
                   query: _searchController.text,
                   resultCount: _filteredCapsules.length,
@@ -100,7 +101,7 @@ class _PlayedCapsulesScreenState extends State<PlayedCapsulesScreen> {
                   pluralLabel: 'played capsules',
                 ),
               ],
-              const SizedBox(height: 24),
+              const SizedBox(height: 14),
               Expanded(
                 child: _isLoading
                     ? const Center(child: CircularProgressIndicator())
@@ -130,15 +131,15 @@ class _PlayedCapsulesScreenState extends State<PlayedCapsulesScreen> {
         children: [
           EmptyState(
             icon: hasNoCapsules
-                ? Icons.history_rounded
+                ? Icons.history_toggle_off_rounded
                 : Icons.search_off_rounded,
             lottieAsset: CapsuleDatabase.isEmpty ? EmptyState.emptyLottie : null,
             title: hasNoCapsules
-                ? 'No played capsules yet'
-                : 'No capsules found',
+                ? 'No opened capsules yet'
+                : 'No capsules match search',
             subtitle: hasNoCapsules
-                ? 'Capsules you\'ve listened to will appear here'
-                : 'Try adjusting your search or clear filters',
+                ? 'Once a locked capsule unlocks and you listen to it, it will be safely archived here.'
+                : 'Try adjusting your search query',
             actionLabel: isSearching ? 'Clear Search' : null,
             actionIcon: Icons.clear_all_rounded,
             onAction: isSearching
@@ -156,10 +157,11 @@ class _PlayedCapsulesScreenState extends State<PlayedCapsulesScreen> {
     return ListView.builder(
       physics: const AlwaysScrollableScrollPhysics(),
       itemCount: _filteredCapsules.length,
+      padding: const EdgeInsets.only(bottom: 24),
       itemBuilder: (context, index) {
         final capsule = _filteredCapsules[index];
         return Padding(
-          padding: const EdgeInsets.only(bottom: 12),
+          padding: const EdgeInsets.only(bottom: 10),
           child: SwipeableCapsuleCard(
             capsule: capsule,
             onTap: () => _handlePlay(capsule),

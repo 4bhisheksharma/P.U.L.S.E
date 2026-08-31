@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:pulse/theme/my_app_theme.dart';
 
 class SearchResultsCounter extends StatelessWidget {
   final String query;
@@ -20,59 +21,56 @@ class SearchResultsCounter extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return AnimatedOpacity(
-      opacity: 1.0,
-      duration: const Duration(milliseconds: 300),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-        decoration: BoxDecoration(
-          color: theme.colorScheme.primary.withValues(alpha: 0.1),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: theme.colorScheme.primary.withValues(alpha: 0.39),
-            width: 1,
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      decoration: BoxDecoration(
+        color: MyAppTheme.surfaceColor,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: MyAppTheme.borderColor,
+          width: 1,
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            Icons.filter_list_rounded,
+            size: 16,
+            color: MyAppTheme.primaryColor,
           ),
-        ),
-        child: Row(
-          children: [
-            Icon(
-              Icons.filter_list_rounded,
-              size: 18,
-              color: theme.colorScheme.primary,
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              resultCount == 0
+                  ? 'No $pluralLabel match "$query"'
+                  : resultCount == 1
+                  ? '1 $singularLabel found'
+                  : '$resultCount $pluralLabel found',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: MyAppTheme.textColor,
+                fontWeight: FontWeight.w500,
+                fontSize: 12.5,
+              ),
             ),
-            const SizedBox(width: 8),
-            Expanded(
+          ),
+          if (resultCount < totalCount)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: MyAppTheme.cardColor,
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: MyAppTheme.borderColor, width: 0.8),
+              ),
               child: Text(
-                resultCount == 0
-                    ? 'No $pluralLabel match "$query"'
-                    : resultCount == 1
-                    ? '1 $singularLabel found'
-                    : '$resultCount $pluralLabel found',
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: theme.colorScheme.primary,
-                  fontWeight: FontWeight.w500,
-                  fontSize: 13,
+                'of $totalCount',
+                style: TextStyle(
+                  color: MyAppTheme.textSecondaryColor,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
             ),
-            if (resultCount < totalCount)
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.primary.withValues(alpha: 0.2),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Text(
-                  'of $totalCount',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.primary,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-          ],
-        ),
+        ],
       ),
     );
   }

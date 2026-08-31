@@ -49,14 +49,13 @@ class _PinEntryState extends State<PinEntry> {
       mainAxisSize: MainAxisSize.min,
       children: [
         _buildDots(context),
-        const SizedBox(height: 40),
+        const SizedBox(height: 36),
         _buildKeypad(context),
       ],
     );
   }
 
   Widget _buildDots(BuildContext context) {
-    final theme = Theme.of(context);
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: List.generate(widget.length, (index) {
@@ -64,19 +63,23 @@ class _PinEntryState extends State<PinEntry> {
         return AnimatedContainer(
           duration: const Duration(milliseconds: 150),
           margin: const EdgeInsets.symmetric(horizontal: 10),
-          width: 16,
-          height: 16,
+          width: 14,
+          height: 14,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            color: filled
-                ? theme.colorScheme.primary
-                : Colors.transparent,
+            color: filled ? MyAppTheme.primaryColor : Colors.transparent,
             border: Border.all(
-              color: filled
-                  ? theme.colorScheme.primary
-                  : MyAppTheme.borderColor,
-              width: 2,
+              color: filled ? MyAppTheme.primaryColor : MyAppTheme.borderColor,
+              width: 1.8,
             ),
+            boxShadow: [
+              if (filled)
+                BoxShadow(
+                  color: MyAppTheme.primaryColor.withValues(alpha: 0.4),
+                  blurRadius: 10,
+                  spreadRadius: 1,
+                ),
+            ],
           ),
         );
       }),
@@ -104,7 +107,8 @@ class _PinEntryState extends State<PinEntry> {
               IconButton(
                 onPressed: _backspace,
                 icon: const Icon(Icons.backspace_outlined),
-                iconSize: 26,
+                iconSize: 22,
+                color: MyAppTheme.textSecondaryColor,
               ),
             ),
           ],
@@ -115,8 +119,8 @@ class _PinEntryState extends State<PinEntry> {
 
   Widget _buildSlot(Widget? child) {
     return SizedBox(
-      width: 76,
-      height: 76,
+      width: 72,
+      height: 72,
       child: Center(child: child ?? const SizedBox.shrink()),
     );
   }
@@ -124,21 +128,26 @@ class _PinEntryState extends State<PinEntry> {
   Widget _buildKey(BuildContext context, String digit) {
     final theme = Theme.of(context);
     return Padding(
-      padding: const EdgeInsets.all(6),
+      padding: const EdgeInsets.all(5),
       child: Material(
-        color: theme.cardColor,
+        color: MyAppTheme.cardColor,
         shape: const CircleBorder(),
         child: InkWell(
           customBorder: const CircleBorder(),
           onTap: () => _addDigit(digit),
-          child: SizedBox(
-            width: 64,
-            height: 64,
+          child: Container(
+            width: 62,
+            height: 62,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(color: MyAppTheme.borderColor, width: 1),
+            ),
             child: Center(
               child: Text(
                 digit,
                 style: theme.textTheme.headlineSmall?.copyWith(
                   fontWeight: FontWeight.w600,
+                  fontSize: 22,
                 ),
               ),
             ),

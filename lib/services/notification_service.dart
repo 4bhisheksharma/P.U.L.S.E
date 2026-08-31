@@ -22,7 +22,7 @@ class NotificationService {
   static const String _channelId = 'pulse_capsules';
   static const String _channelName = 'Time Capsules';
   static const String _channelDescription =
-      'Notifications for time capsule unlocks';
+      'Notifications for time capsule unlocks and reminders';
 
   final FlutterLocalNotificationsPlugin _notifications =
       FlutterLocalNotificationsPlugin();
@@ -245,9 +245,10 @@ class NotificationService {
         _channelId,
         _channelName,
         description: _channelDescription,
-        importance: Importance.high,
+        importance: Importance.max,
         playSound: true,
         enableVibration: true,
+        showBadge: true,
       );
       await androidPlugin.createNotificationChannel(channel);
     }
@@ -263,6 +264,11 @@ class NotificationService {
 
     final canSchedule = await androidPlugin.canScheduleExactNotifications();
     return canSchedule ?? true;
+  }
+
+  /// Public check for exact alarm permission
+  Future<bool> canScheduleExactAlarms() async {
+    return await _checkExactAlarmPermission();
   }
 
   /// Handle notification tap while app is running or in background.
@@ -358,7 +364,7 @@ class NotificationService {
         androidGranted = await androidPlugin.requestNotificationsPermission();
       }
 
-      // Exact alarms are optional — inexact scheduling still works without them.
+      // Exact alarms are checked & requested on Android 12+
       try {
         _canScheduleExactAlarms = await _checkExactAlarmPermission();
         if (!_canScheduleExactAlarms) {
@@ -401,13 +407,15 @@ class NotificationService {
     const interpretation =
         UILocalNotificationDateInterpretation.absoluteTime;
 
-    // User-chosen unlock times are a valid exact-alarm use case. Prefer exact
-    // modes when permitted; fall back to inexact (required on Android 14+ without
-    // alarm permission).
+    // Refresh exact alarm capability before scheduling
+    try {
+      _canScheduleExactAlarms = await _checkExactAlarmPermission();
+    } catch (_) {}
+
+    // Fallback schedule modes: try exact first if supported, then inexact
     final modes = <AndroidScheduleMode>[
       if (_canScheduleExactAlarms) AndroidScheduleMode.alarmClock,
-      if (_canScheduleExactAlarms)
-        AndroidScheduleMode.exactAllowWhileIdle,
+      if (_canScheduleExactAlarms) AndroidScheduleMode.exactAllowWhileIdle,
       AndroidScheduleMode.inexactAllowWhileIdle,
       AndroidScheduleMode.inexact,
     ];
@@ -426,27 +434,15 @@ class NotificationService {
           payload: payload,
         );
 
-        // zonedSchedule completing without error is treated as success.
-        // pendingNotificationRequests() is unreliable for inexact alarms on
-        // some OEM/release builds and caused false failures in Play testing.
-        try {
-          final pending = await _notifications.pendingNotificationRequests();
-          if (!pending.any((request) => request.id == id)) {
-            _logFailure(
-              'Scheduled $id but not in pending list (mode=$mode)',
-              'pending verification skipped',
-            );
-          }
-        } catch (_) {}
-
+        // zonedSchedule succeeded
         return;
       } catch (e) {
         lastError = e;
-        _logFailure('zonedSchedule mode=$mode failed', e);
+        _logFailure('zonedSchedule mode=$mode failed, trying next fallback', e);
       }
     }
 
-    throw Exception('zonedSchedule failed: $lastError');
+    throw Exception('zonedSchedule failed across all schedule modes: $lastError');
   }
 
   /// Schedule notification for capsule unlock. Returns true when verified.
@@ -462,8 +458,8 @@ class NotificationService {
 
     await _zonedScheduleWithFallback(
       id: id,
-      title: 'Time Capsule Unlocked',
-      body: '${capsule.title} is ready to open',
+      title: '✨ Time Capsule Unlocked',
+      body: '"${capsule.title}" is ready to open!',
       scheduledDate: scheduledDate,
       payload: capsule.id,
     );
@@ -485,11 +481,53 @@ class NotificationService {
 
     await _zonedScheduleWithFallback(
       id: _notificationId(capsule.id, slot: 1),
-      title: 'Capsule Unlocking Soon',
-      body: '${capsule.title} unlocks tomorrow!',
+      title: '⏳ Capsule Unlocking Soon',
+      body: '"${capsule.title}" unlocks tomorrow!',
       scheduledDate: scheduledDate,
       payload: capsule.id,
     );
+  }
+
+  /// Sends a test notification after [delaySeconds] (default 5s) to verify in Closed Testing
+  Future<bool> sendTestNotification({int delaySeconds = 5}) async {
+    if (!await _ensureReady()) return false;
+
+    final enabled = await areNotificationsEnabled();
+    if (!enabled) {
+      await requestPermissions();
+    }
+
+    final testId = 999999;
+    final scheduledDate = tz.TZDateTime.now(tz.UTC).add(
+      Duration(seconds: delaySeconds),
+    );
+
+    try {
+      await _zonedScheduleWithFallback(
+        id: testId,
+        title: '🔔 P.U.L.S.E Test Notification',
+        body: 'Push and scheduled notifications are working perfectly in P.U.L.S.E!',
+        scheduledDate: scheduledDate,
+        payload: 'test_notification',
+      );
+      return true;
+    } catch (e, stack) {
+      _logFailure('sendTestNotification failed', e, stack);
+      // As ultimate fallback for instant verification, try instant show
+      try {
+        await _notifications.show(
+          testId,
+          '🔔 P.U.L.S.E Notification Check',
+          'Notification system is active and ready!',
+          notificationDetails(),
+          payload: 'test_notification',
+        );
+        return true;
+      } catch (showError) {
+        _logFailure('show notification failed', showError);
+        return false;
+      }
+    }
   }
 
   /// Cancel notification for a capsule
@@ -523,12 +561,13 @@ class NotificationService {
         _channelId,
         _channelName,
         channelDescription: _channelDescription,
-        importance: Importance.high,
+        importance: Importance.max,
         priority: Priority.high,
         icon: '@drawable/ic_notification',
         color: const Color(0xFF7C73FF),
         playSound: true,
         enableVibration: true,
+        showWhen: true,
       ),
       iOS: const DarwinNotificationDetails(
         presentAlert: true,
@@ -558,7 +597,7 @@ class NotificationService {
     return true;
   }
 
-  /// Reschedule notifications for all locked capsules (e.g. after boot)
+  /// Reschedule notifications for all locked capsules (e.g. after boot or update)
   Future<void> rescheduleAllCapsuleNotifications() async {
     if (!_isInitialized) await initialize();
 
@@ -573,7 +612,7 @@ class NotificationService {
     }
   }
 
-  /// Only reschedules when pending alarms look incomplete (avoids work every launch).
+  /// Only reschedules when pending alarms look incomplete (avoids duplicate work every launch).
   Future<void> rescheduleAllCapsuleNotificationsIfNeeded() async {
     if (!_isInitialized) await initialize();
 

@@ -52,61 +52,63 @@ class _SearchBarWidgetState extends State<SearchBarWidget> {
     final hasText = widget.controller?.text.isNotEmpty ?? false;
 
     return AnimatedContainer(
-      duration: const Duration(milliseconds: 200),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      duration: const Duration(milliseconds: 180),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
       decoration: BoxDecoration(
-        color: theme.cardColor,
-        borderRadius: BorderRadius.circular(24),
+        color: MyAppTheme.surfaceColor,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: _isFocused
+              ? MyAppTheme.primaryColor
+              : MyAppTheme.borderColor,
+          width: _isFocused ? 1.4 : 1,
+        ),
       ),
       child: Row(
         children: [
-          AnimatedScale(
-            scale: _isFocused ? 1.1 : 1.0,
-            duration: const Duration(milliseconds: 200),
-            child: Icon(
-              Icons.search_rounded,
-              color: _isFocused
-                  ? theme.colorScheme.primary
-                  : MyAppTheme.textSecondaryColor,
-              size: 24,
-            ),
+          Icon(
+            Icons.search_rounded,
+            color: _isFocused
+                ? MyAppTheme.primaryColor
+                : MyAppTheme.textSecondaryColor,
+            size: 20,
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 10),
           Expanded(
             child: TextField(
               controller: widget.controller,
               focusNode: _focusNode,
               onChanged: widget.onChanged,
               style: theme.textTheme.bodyLarge?.copyWith(
-                fontSize: 16,
-                letterSpacing: 0.2,
+                fontSize: 14.5,
               ),
               decoration: InputDecoration(
+                isDense: true,
+                filled: false,
                 hintText: widget.hintText ?? 'Search capsules...',
                 hintStyle: TextStyle(
-                  color: MyAppTheme.textSecondaryColor,
-                  fontSize: 16,
-                  letterSpacing: 0.2,
+                  color: MyAppTheme.textMutedColor,
+                  fontSize: 14.5,
                 ),
                 border: InputBorder.none,
-                contentPadding: const EdgeInsets.symmetric(vertical: 16),
+                enabledBorder: InputBorder.none,
+                focusedBorder: InputBorder.none,
+                contentPadding: const EdgeInsets.symmetric(vertical: 12),
               ),
             ),
           ),
           if (hasText)
-            AnimatedScale(
-              scale: hasText ? 1.0 : 0.0,
-              duration: const Duration(milliseconds: 200),
-              child: IconButton(
-                icon: Icon(
-                  Icons.clear_rounded,
-                  color: MyAppTheme.textSecondaryColor,
-                  size: 20,
-                ),
-                onPressed: _clearSearch,
-                splashRadius: 20,
-                tooltip: 'Clear search',
+            IconButton(
+              icon: Icon(
+                Icons.close_rounded,
+                color: MyAppTheme.textSecondaryColor,
+                size: 18,
               ),
+              onPressed: _clearSearch,
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(),
+              splashRadius: 16,
+              tooltip: 'Clear search',
             ),
         ],
       ),

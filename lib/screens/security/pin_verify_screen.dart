@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:pulse/services/settings_service.dart';
+import 'package:pulse/theme/my_app_theme.dart';
 import 'package:pulse/widgets/common/pin_entry.dart';
 
 /// Single-step PIN verification. Pops with `true` on success.
@@ -11,7 +12,7 @@ class PinVerifyScreen extends StatefulWidget {
   const PinVerifyScreen({
     super.key,
     this.title = 'Enter PIN',
-    this.subtitle = 'Confirm your current PIN to continue',
+    this.subtitle = 'Confirm your 4-digit PIN to continue',
   });
 
   @override
@@ -23,10 +24,11 @@ class _PinVerifyScreenState extends State<PinVerifyScreen> {
 
   void _verify(String pin) {
     if (SettingsService.verifyPin(pin)) {
+      HapticFeedback.mediumImpact();
       Navigator.pop(context, true);
     } else {
       HapticFeedback.heavyImpact();
-      setState(() => _error = 'Incorrect PIN');
+      setState(() => _error = 'Incorrect PIN. Please try again.');
     }
   }
 
@@ -35,40 +37,71 @@ class _PinVerifyScreenState extends State<PinVerifyScreen> {
     final theme = Theme.of(context);
 
     return Scaffold(
-      appBar: AppBar(title: Text(widget.title)),
+      appBar: AppBar(
+        titleSpacing: 20,
+        title: Text(widget.title),
+      ),
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.all(24),
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
           child: Column(
             children: [
-              const Spacer(),
-              Icon(
-                Icons.lock_outline,
-                size: 48,
-                color: theme.colorScheme.primary,
+              const Spacer(flex: 1),
+              Container(
+                width: 64,
+                height: 64,
+                decoration: BoxDecoration(
+                  color: MyAppTheme.primaryColor.withValues(alpha: 0.14),
+                  shape: BoxShape.circle,
+                ),
+                child: Center(
+                  child: Icon(
+                    Icons.lock_outline_rounded,
+                    size: 30,
+                    color: MyAppTheme.primaryColor,
+                  ),
+                ),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 18),
               Text(
                 widget.title,
-                style: theme.textTheme.headlineSmall,
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 8),
-              Text(
-                _error ?? widget.subtitle,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: _error != null
-                      ? theme.colorScheme.error
-                      : theme.textTheme.bodyMedium?.color,
+                style: theme.textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.w700,
                 ),
                 textAlign: TextAlign.center,
               ),
-              const SizedBox(height: 40),
+              const SizedBox(height: 6),
+              Text(
+                widget.subtitle,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: MyAppTheme.textSecondaryColor,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              if (_error != null) ...[
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: MyAppTheme.errorColor.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    _error!,
+                    style: TextStyle(
+                      color: MyAppTheme.errorColor,
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+              ],
+              const Spacer(flex: 1),
               PinEntry(
                 key: ValueKey(_error),
                 onCompleted: _verify,
               ),
-              const Spacer(),
+              const Spacer(flex: 2),
             ],
           ),
         ),
